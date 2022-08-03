@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin"
+	"github.com/mattermost/mattermost-server/v6/model"
+	"github.com/mattermost/mattermost-server/v6/plugin"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
@@ -38,7 +38,7 @@ type startMeetingRequest struct {
 
 func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
 	config := p.getConfiguration()
-	if err := config.IsValid(); err != nil {
+	if err := config.IsValid(p.isCloudLicense()); err != nil {
 		http.Error(w, "This plugin is not configured.", http.StatusNotImplemented)
 		return
 	}
@@ -129,7 +129,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	client := zoom.NewOAuthClient(token, conf, p.siteURL, p.getZoomAPIURL(), p.configuration.AccountLevelApp)
+	client := zoom.NewOAuthClient(token, conf, p.siteURL, p.getZoomAPIURL(), p.configuration.AccountLevelApp, p)
 	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
 		http.Error(w, appErr.Error(), http.StatusInternalServerError)
@@ -164,12 +164,23 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	p.trackConnect(userID)
+
 	if justConnect {
 		p.postEphemeral(userID, channelID, "Successfully connected to Zoom")
-	} else if err = p.postMeeting(user, zoomUser.Pmi, channelID, ""); err != nil {
-		p.API.LogWarn("Failed to post meeting", "error", err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	} else {
+		meeting, err := client.CreateMeeting(zoomUser, defaultMeetingTopic)
+		if err != nil {
+			p.API.LogWarn("Error creating the meeting", "err", err)
+			return
+		}
+
+		meetingID := meeting.ID
+		if err = p.postMeeting(user, meetingID, channelID, "", ""); err != nil {
+			p.API.LogWarn("Failed to post meeting", "error", err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	html := `
@@ -221,7 +232,7 @@ func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if webhook.Event != zoom.EventTypeMeetingEnded {
-		w.WriteHeader(http.StatusNotImplemented)
+		w.WriteHeader(http.StatusOK)
 		return
 	}
 
@@ -266,14 +277,14 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 		Fallback: fmt.Sprintf("Meeting %s has ended: started at %s, length: %d minute(s).", post.Props["meeting_id"], startText, length),
 		Title:    topic,
 		Text: fmt.Sprintf(
-			"Personal Meeting ID (PMI) : %d\n\n##### Meeting Summary\n\nDate: %s\n\nMeeting Length: %d minute(s)",
+			"Meeting ID: %d\n\n##### Meeting Summary\n\nDate: %s\n\nMeeting Length: %d minute(s)",
 			int(meetingID),
 			startText,
 			length,
 		),
 	}
 
-	post.Message = "I have ended the meeting."
+	post.Message = "The meeting has ended."
 	post.Props["meeting_status"] = zoom.WebhookStatusEnded
 	post.Props["attachments"] = []*model.SlackAttachment{&slackAttachment}
 
@@ -289,28 +300,33 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 		return
 	}
 
-	_, err := w.Write([]byte(post.ToJson()))
-	if err != nil {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(post); err != nil {
 		p.API.LogWarn("failed to write response", "error", err.Error())
 	}
 }
 
-func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID string, topic string) error {
+func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID string, rootID string, topic string) error {
 	meetingURL := p.getMeetingURL(creator, meetingID)
 
 	if topic == "" {
 		topic = defaultMeetingTopic
 	}
 
+	if !p.API.HasPermissionToChannel(creator.Id, channelID, model.PermissionCreatePost) {
+		return errors.New("this channel is not accessible, you might not have permissions to write in this channel. Contact the administrator of this channel to find out if you have access permissions")
+	}
+
 	slackAttachment := model.SlackAttachment{
 		Fallback: fmt.Sprintf("Video Meeting started at [%d](%s).\n\n[Join Meeting](%s)", meetingID, meetingURL, meetingURL),
 		Title:    topic,
-		Text:     fmt.Sprintf("Personal Meeting ID (PMI) : [%d](%s)\n\n[Join Meeting](%s)", meetingID, meetingURL, meetingURL),
+		Text:     fmt.Sprintf("Meeting ID: [%d](%s)\n\n[Join Meeting](%s)", meetingID, meetingURL, meetingURL),
 	}
 
 	post := &model.Post{
 		UserId:    creator.Id,
 		ChannelId: channelID,
+		RootId:    rootID,
 		Message:   "I have started a meeting",
 		Type:      "custom_zoom",
 		Props: map[string]interface{}{
@@ -318,7 +334,7 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 			"meeting_id":               meetingID,
 			"meeting_link":             meetingURL,
 			"meeting_status":           zoom.WebhookStatusStarted,
-			"meeting_personal":         true,
+			"meeting_personal":         false,
 			"meeting_topic":            topic,
 			"meeting_creator_username": creator.Username,
 			"meeting_provider":         zoomProviderName,
@@ -401,7 +417,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				p.API.LogWarn("failed to write response", "error", err.Error())
 			}
-			p.postConfirm(recentMeetingLink, req.ChannelID, req.Topic, userID, creatorName, provider)
+			p.postConfirm(recentMeetingLink, req.ChannelID, req.Topic, userID, "", creatorName, provider)
 			return
 		}
 	}
@@ -455,7 +471,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if meetingID >= 0 && createMeetingErr == nil {
-		if err = p.postMeeting(user, meetingID, req.ChannelID, topic); err == nil {
+		if err = p.postMeeting(user, meetingID, req.ChannelID, "", topic); err == nil {
 			meetingURL := p.getMeetingURL(user, meetingID)
 			_, err = w.Write([]byte(fmt.Sprintf(`{"meeting_url": "%s"}`, meetingURL)))
 			if err != nil {
@@ -499,7 +515,7 @@ func (p *Plugin) getMeetingURL(user *model.User, meetingID int) string {
 	return meeting.JoinURL
 }
 
-func (p *Plugin) postConfirm(meetingLink string, channelID string, topic string, userID string, creatorName string, provider string) *model.Post {
+func (p *Plugin) postConfirm(meetingLink string, channelID string, topic string, userID string, rootID string, creatorName string, provider string) *model.Post {
 	message := "There is another recent meeting created on this channel."
 	if provider != zoomProviderName {
 		message = fmt.Sprintf("There is another recent meeting created on this channel with %s.", provider)
@@ -508,18 +524,21 @@ func (p *Plugin) postConfirm(meetingLink string, channelID string, topic string,
 	post := &model.Post{
 		UserId:    p.botUserID,
 		ChannelId: channelID,
+		RootId:    rootID,
 		Message:   message,
 		Type:      "custom_zoom",
 		Props: map[string]interface{}{
 			"type":                     "custom_zoom",
 			"meeting_link":             meetingLink,
 			"meeting_status":           zoom.RecentlyCreated,
-			"meeting_personal":         true,
+			"meeting_personal":         false,
 			"meeting_topic":            topic,
 			"meeting_creator_username": creatorName,
 			"meeting_provider":         provider,
 		},
 	}
+
+	p.trackMeetingDuplication(userID)
 
 	return p.API.SendEphemeralPost(userID, post)
 }

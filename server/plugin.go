@@ -9,10 +9,13 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/mattermost/mattermost-server/v5/model"
-	"github.com/mattermost/mattermost-server/v5/plugin"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
+
+	pluginapi "github.com/mattermost/mattermost-plugin-api"
+	"github.com/mattermost/mattermost-plugin-api/experimental/telemetry"
+	"github.com/mattermost/mattermost-server/v6/model"
+	"github.com/mattermost/mattermost-server/v6/plugin"
 
 	"github.com/mattermost/mattermost-plugin-zoom/server/zoom"
 )
@@ -33,6 +36,8 @@ type Plugin struct {
 
 	jwtClient zoom.Client
 
+	client *pluginapi.Client
+
 	// botUserID of the created bot account.
 	botUserID string
 
@@ -44,12 +49,17 @@ type Plugin struct {
 	configuration *configuration
 
 	siteURL string
+
+	telemetryClient telemetry.Client
+	tracker         telemetry.Tracker
 }
 
 // OnActivate checks if the configurations is valid and ensures the bot account exists
 func (p *Plugin) OnActivate() error {
+	p.client = pluginapi.NewClient(p.API, p.Driver)
+
 	config := p.getConfiguration()
-	if err := config.IsValid(); err != nil {
+	if err := config.IsValid(p.isCloudLicense()); err != nil {
 		return err
 	}
 
@@ -67,7 +77,7 @@ func (p *Plugin) OnActivate() error {
 		return errors.Wrap(err, "failed to register command")
 	}
 
-	botUserID, err := p.Helpers.EnsureBot(&model.Bot{
+	botUserID, err := p.client.Bot.EnsureBot(&model.Bot{
 		Username:    botUserName,
 		DisplayName: botDisplayName,
 		Description: botDescription,
@@ -93,6 +103,22 @@ func (p *Plugin) OnActivate() error {
 
 	p.jwtClient = zoom.NewJWTClient(p.getZoomAPIURL(), config.APIKey, config.APISecret)
 
+	p.telemetryClient, err = telemetry.NewRudderClient()
+	if err != nil {
+		p.API.LogWarn("telemetry client not started", "error", err.Error())
+	}
+
+	return nil
+}
+
+func (p *Plugin) OnDeactivate() error {
+	if p.telemetryClient != nil {
+		err := p.telemetryClient.Close()
+		if err != nil {
+			p.API.LogWarn("OnDeactivate: failed to close telemetryClient", "error", err.Error())
+		}
+	}
+
 	return nil
 }
 
@@ -112,7 +138,7 @@ func (p *Plugin) getActiveClient(user *model.User) (zoom.Client, string, error) 
 	config := p.getConfiguration()
 
 	// JWT
-	if !config.EnableOAuth {
+	if !p.OAuthEnabled() {
 		return p.jwtClient, "", nil
 	}
 
@@ -129,7 +155,7 @@ func (p *Plugin) getActiveClient(user *model.User) (zoom.Client, string, error) 
 		if token == nil {
 			return nil, message, errors.New("zoom app not connected")
 		}
-		return zoom.NewOAuthClient(token, p.getOAuthConfig(), p.siteURL, p.getZoomAPIURL(), true), "", nil
+		return zoom.NewOAuthClient(token, p.getOAuthConfig(), p.siteURL, p.getZoomAPIURL(), true, p), "", nil
 	}
 
 	// Oauth User Level
@@ -146,7 +172,7 @@ func (p *Plugin) getActiveClient(user *model.User) (zoom.Client, string, error) 
 
 	info.OAuthToken.AccessToken = plainToken
 	conf := p.getOAuthConfig()
-	return zoom.NewOAuthClient(info.OAuthToken, conf, p.siteURL, p.getZoomAPIURL(), false), "", nil
+	return zoom.NewOAuthClient(info.OAuthToken, conf, p.siteURL, p.getZoomAPIURL(), false, p), "", nil
 }
 
 // getOAuthConfig returns the Zoom OAuth2 flow configuration.
@@ -162,11 +188,6 @@ func (p *Plugin) getOAuthConfig() *oauth2.Config {
 			TokenURL: fmt.Sprintf("%v/oauth/token", zoomURL),
 		},
 		RedirectURL: fmt.Sprintf("%s/plugins/zoom/oauth2/complete", p.siteURL),
-		Scopes: []string{
-			"user:read",
-			"meeting:write",
-			"webinar:write",
-			"recording:write"},
 	}
 }
 
@@ -199,4 +220,37 @@ func (p *Plugin) sendDirectMessage(userID string, message string) error {
 
 	_, err = p.API.CreatePost(post)
 	return err
+}
+
+func (p *Plugin) GetZoomSuperUserToken() (*oauth2.Token, error) {
+	token, err := p.getSuperuserToken()
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get token")
+	}
+	if token == nil {
+		return nil, errors.New("zoom app not connected")
+	}
+	return token, nil
+}
+
+func (p *Plugin) SetZoomSuperUserToken(token *oauth2.Token) error {
+	err := p.setSuperUserToken(token)
+	if err != nil {
+		return errors.Wrap(err, "could not set token")
+	}
+	return nil
+}
+
+func (p *Plugin) isCloudLicense() bool {
+	license := p.API.GetLicense()
+	return license != nil && *license.Features.Cloud
+}
+
+func (p *Plugin) OAuthEnabled() bool {
+	config := p.getConfiguration()
+	if config.EnableOAuth {
+		return true
+	}
+
+	return p.isCloudLicense()
 }

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/mattermost/mattermost-plugin-api/experimental/telemetry"
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-zoom/server/zoom"
@@ -50,9 +51,9 @@ func (c *configuration) Clone() *configuration {
 }
 
 // IsValid checks if all needed fields are set.
-func (c *configuration) IsValid() error {
+func (c *configuration) IsValid(isCloud bool) error {
 	switch {
-	case !c.EnableOAuth:
+	case !c.EnableOAuth && !isCloud: // JWT for on-prem
 		switch {
 		case len(c.APIKey) == 0:
 			return errors.New("please configure APIKey")
@@ -60,7 +61,7 @@ func (c *configuration) IsValid() error {
 		case len(c.APISecret) == 0:
 			return errors.New("please configure APISecret")
 		}
-	case c.EnableOAuth:
+	case c.EnableOAuth || isCloud: // OAuth for either platform
 		switch {
 		case len(c.OAuthClientSecret) == 0:
 			return errors.New("please configure OAuthClientSecret")
@@ -71,8 +72,6 @@ func (c *configuration) IsValid() error {
 		case len(c.EncryptionKey) == 0:
 			return errors.New("please generate EncryptionKey from Zoom plugin settings")
 		}
-	default:
-		return errors.New("please select either OAuth or Password based authentication")
 	}
 
 	if len(c.WebhookSecret) == 0 {
@@ -126,6 +125,14 @@ func (p *Plugin) setConfiguration(configuration *configuration) {
 // OnConfigurationChange is invoked when configuration changes may have been made.
 func (p *Plugin) OnConfigurationChange() error {
 	var configuration = new(configuration)
+	prevConfigEnableOAuth := false
+	if p.configuration != nil {
+		prevConfigEnableOAuth = p.configuration.EnableOAuth
+	}
+	prevConfigAccountLevelOAuth := false
+	if p.configuration != nil {
+		prevConfigAccountLevelOAuth = p.configuration.AccountLevelApp
+	}
 
 	// Load the public configuration fields from the Mattermost server configuration.
 	if err := p.API.LoadPluginConfiguration(configuration); err != nil {
@@ -138,6 +145,31 @@ func (p *Plugin) OnConfigurationChange() error {
 
 	p.setConfiguration(configuration)
 	p.jwtClient = zoom.NewJWTClient(p.getZoomAPIURL(), configuration.APIKey, configuration.APISecret)
+
+	enableDiagnostics := false
+	if config := p.API.GetConfig(); config != nil {
+		if configValue := config.LogSettings.EnableDiagnostics; configValue != nil {
+			enableDiagnostics = *configValue
+		}
+	}
+	p.tracker = telemetry.NewTracker(p.telemetryClient, p.API.GetDiagnosticId(), p.API.GetServerVersion(), manifest.ID, manifest.Version, "zoom", enableDiagnostics)
+
+	if prevConfigEnableOAuth != p.configuration.EnableOAuth {
+		method := telemetryOauthModeJWT
+		if p.configuration.EnableOAuth {
+			method = telemetryOauthModeOauth
+		}
+
+		p.trackOAuthModeChange(method)
+	}
+	if prevConfigAccountLevelOAuth != p.configuration.AccountLevelApp {
+		method := telemetryOauthModeOauth
+		if p.configuration.AccountLevelApp {
+			method = telemetryOauthModeOauthAccountLevel
+		}
+
+		p.trackOAuthModeChange(method)
+	}
 
 	// re-register the plugin command here as a configuration update might change the available commands
 	command, err := p.getCommand()

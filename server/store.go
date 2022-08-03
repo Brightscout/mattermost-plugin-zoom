@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mattermost/mattermost-server/v5/model"
+	"github.com/mattermost/mattermost-server/v6/model"
 	"github.com/pkg/errors"
 	"golang.org/x/oauth2"
 
@@ -65,9 +65,14 @@ func (p *Plugin) fetchOAuthUserInfo(tokenKey, userID string) (*zoom.OAuthUserInf
 }
 
 func (p *Plugin) disconnectOAuthUser(userID string) error {
+	// according to the definition encoded would be nil
 	encoded, err := p.API.KVGet(zoomUserByMMID + userID)
+
 	if err != nil {
 		return errors.Wrap(err, "could not find OAuth user info")
+	}
+	if encoded == nil {
+		return errors.New("you are not connected to Zoom yet")
 	}
 
 	var info zoom.OAuthUserInfo
