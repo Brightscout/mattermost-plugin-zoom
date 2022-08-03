@@ -20,7 +20,6 @@ import (
 	"github.com/mattermost/mattermost-server/v6/plugin"
 	"github.com/mattermost/mattermost-server/v6/plugin/plugintest"
 	"github.com/mattermost/mattermost-server/v6/plugin/plugintest/mock"
-
 	"github.com/mattermost/mattermost-plugin-zoom/server/zoom"
 )
 
