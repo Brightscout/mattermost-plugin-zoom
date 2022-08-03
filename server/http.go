@@ -450,6 +450,10 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, req.ChannelID, topic)
 	}
 
+	if meetingID == -1 && createMeetingErr == nil {
+		return
+	}
+
 	if meetingID >= 0 && createMeetingErr == nil {
 		if err = p.postMeeting(user, meetingID, req.ChannelID, topic); err == nil {
 			meetingURL := p.getMeetingURL(user, meetingID)

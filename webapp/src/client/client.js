@@ -40,7 +40,7 @@ export const doPost = async (url, body, headers = {}) => {
     const response = await fetch(url, Client4.getOptions(options));
 
     if (response.ok) {
-        return response.json();
+        return response.text();
     }
 
     const text = await response.text();

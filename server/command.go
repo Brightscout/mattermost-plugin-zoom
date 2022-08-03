@@ -17,7 +17,7 @@ const (
 	helpText           = `* |/zoom start| - Start a zoom meeting`
 	oAuthHelpText      = `* |/zoom disconnect| - Disconnect from zoom`
 	settingHelpText    = `* |/zoom setting| - Configure setting options`
-	settingPMIHelpText = `* |/zoom setting usePMI [true/false/ask]| - 
+	settingPMIHelpText = `* |/zoom setting use_pmi [true/false/ask]| - 
 		enable / disable / undecide to use PMI to create meeting
 	`
 	alreadyConnectedString = "Already connected"
@@ -146,6 +146,9 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User) (str
 	} else {
 		p.askUserPMIMeeting(user.Id, args.ChannelId)
 	}
+	if meetingID == -1 && createMeetingErr == nil {
+		return "", nil
+	}
 	if meetingID <= 0 || createMeetingErr != nil {
 		return "", errors.New("error while create new meeting")
 	}
@@ -222,15 +225,15 @@ func (p *Plugin) runHelpCommand() (string, error) {
 	return text, nil
 }
 
-// run "/zoom setting" command, e.g: /zoom setting usePMI true
+// run "/zoom setting" command, e.g: /zoom setting use_pmi true
 func (p *Plugin) runSettingCommand(settingCommands []string, user *model.User) (string, error) {
 	settingAction := ""
 	if len(settingCommands) > 0 {
 		settingAction = settingCommands[0]
 	}
 	switch settingAction {
-	case "usePMI":
-		// here process the usePMI command
+	case "use_pmi":
+		// here process the use_pmi command
 		if len(settingCommands) > 1 {
 			return p.runPMISettingCommand(settingCommands[1], user)
 		}
@@ -255,7 +258,7 @@ func (p *Plugin) runPMISettingCommand(usePMIValue string, user *model.User) (str
 		}); appError != nil {
 			return "Cannot update preference in zoom setting", nil
 		}
-		return fmt.Sprintf("Update successfully, usePMI: %v", usePMIValue), nil
+		return fmt.Sprintf("Update successfully, use_pmi: %v", usePMIValue), nil
 	default:
 		return fmt.Sprintf("Unknown setting option %v", usePMIValue), nil
 	}
@@ -282,6 +285,21 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	// setting
 	setting := model.NewAutocompleteData("setting", "[command]", "Configurates options")
 	zoom.AddCommand(setting)
+
+	// usePMI
+	usePMI := model.NewAutocompleteData("use_pmi", "", "Use Personal Meeting ID")
+	usePMIItems := []model.AutocompleteListItem{{
+		HelpText: "Ask to start meeting with PMI or without Personal Meeting ID",
+		Item:     "ask",
+	}, {
+		HelpText: "Start meeting with Personal Meeting ID",
+		Item:     "true",
+	}, {
+		HelpText: "Start meeting without Personal Meeting ID",
+		Item:     "false",
+	}}
+	usePMI.AddStaticListArgument("", false, usePMIItems)
+	setting.AddCommand(usePMI)
 	// help
 	help := model.NewAutocompleteData("help", "", "Display usage")
 	zoom.AddCommand(help)
