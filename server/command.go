@@ -101,7 +101,7 @@ func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (str
 		return p.runStartCommand(args, user, topic)
 	case actionDisconnect:
 		return p.runDisconnectCommand(user)
-	case "help", "":
+	case actionHelp, "":
 		return p.runHelpCommand()
 	case "setting":
 		return p.runSettingCommand(split[2:], user)
