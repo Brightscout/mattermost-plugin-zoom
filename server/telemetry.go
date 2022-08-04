@@ -5,7 +5,6 @@ const (
 	telemetryOauthModeOauth             = "Oauth"
 	telemetryOauthModeOauthAccountLevel = "Oauth Account Level"
 
-	telemetryStartSourceWebapp  = "webapp"
 	telemetryStartSourceCommand = "command"
 )
 
@@ -31,8 +30,4 @@ func (p *Plugin) trackMeetingStart(userID, source string) {
 
 func (p *Plugin) trackMeetingDuplication(userID string) {
 	_ = p.tracker.TrackUserEvent("meeting_duplicated", userID, map[string]interface{}{})
-}
-
-func (p *Plugin) trackMeetingForced(userID string) {
-	_ = p.tracker.TrackUserEvent("meeting_forced", userID, map[string]interface{}{})
 }

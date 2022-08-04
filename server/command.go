@@ -78,12 +78,6 @@ func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (str
 		return fmt.Sprintf("Command '%s' is not /zoom. Please try again.", command), nil
 	}
 
-	if len(split) > 1 {
-		action = split[1]
-	} else {
-		return "Please specify an action for /zoom command.", nil
-	}
-
 	if action == "" {
 		return "Please specify an action for /zoom command.", nil
 	}
