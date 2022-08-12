@@ -26,6 +26,8 @@ import (
 const (
 	defaultMeetingTopic      = "Zoom Meeting"
 	zoomOAuthUserStateLength = 4
+	settingDataError         = "something wrong while getting setting data"
+	askForPMIMeeting         = "Would you like to create a meeting with your PMI?"
 )
 
 type startMeetingRequest struct {
@@ -356,7 +358,7 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 	_ = p.API.SendEphemeralPost(userID, &model.Post{
 		ChannelId: channelID,
 		UserId:    p.botUserID,
-		Message:   "Would you like to create a meeting with your PMI?",
+		Message:   askForPMIMeeting,
 		Type:      "custom_zoom",
 		Props: map[string]interface{}{
 			"type": "custom_zoom",
@@ -367,17 +369,17 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 
 func (p *Plugin) getPMISettingData(userID string) (string, error) {
 	if preferences, reqErr := p.API.GetPreferencesForUser(userID); reqErr == nil {
-		for _, pref := range preferences {
-			if pref.UserId != userID ||
-				pref.Category != zoomPreferenceCategory ||
-				pref.Name != zoomPMISettingName {
+		for _, preference := range preferences {
+			if preference.UserId != userID ||
+				preference.Category != zoomPreferenceCategory ||
+				preference.Name != zoomPMISettingName {
 				continue
 			}
-			return pref.Value, nil
+			return preference.Value, nil
 		}
 		return "", nil
 	}
-	return "", errors.New("something wrong while getting setting data")
+	return "", errors.New(settingDataError)
 }
 
 func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
@@ -437,6 +439,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		p.postAuthenticationMessage(req.ChannelID, userID, authErr.Message)
 		return
 	}
+
 	// topic
 	topic := req.Topic
 	if topic == "" {
@@ -473,8 +476,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	if meetingID >= 0 && createMeetingErr == nil {
 		if err = p.postMeeting(user, meetingID, req.ChannelID, "", topic); err == nil {
 			meetingURL := p.getMeetingURL(user, meetingID)
-			_, err = w.Write([]byte(fmt.Sprintf(`{"meeting_url": "%s"}`, meetingURL)))
-			if err != nil {
+			if _, err = w.Write([]byte(fmt.Sprintf(`{"meeting_url": "%s"}`, meetingURL))); err != nil {
 				p.API.LogWarn("failed to write response", "error", err.Error())
 			}
 			return

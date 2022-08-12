@@ -10,6 +10,8 @@ import {Svgs} from '../../constants';
 import {formatDate} from '../../utils/date_utils';
 import AskPMIMeeting from '../zoom-setting/ask_pmi_meeting';
 
+const preTextToCreateMeeting = 'Do you like to create meeting with';
+
 export default class PostTypeZoom extends React.PureComponent {
     static propTypes = {
 
@@ -190,7 +192,7 @@ export default class PostTypeZoom extends React.PureComponent {
                 </div>
             );
         } else if (props.task === 'setting/use_PMI') {
-            preText = 'Do you like to create meeting with';
+            preText = preTextToCreateMeeting;
             content = (
                 <AskPMIMeeting
                     styles={style}
