@@ -20,7 +20,7 @@ const (
 	settingPMIHelpText = `* |/zoom setting use_pmi [true/false/ask]| - 
 		enable / disable / undecide to use PMI to create meeting
 	`
-	alreadyConnectedString = "Already connected"
+	alreadyConnectedText = "Already connected"
 	zoomPreferenceCategory = "plugin:zoom"
 	zoomPMISettingName     = "use-pmi"
 	zoomPMISettingValueAsk = "ask"
@@ -191,7 +191,7 @@ func (p *Plugin) runConnectCommand(user *model.User, extra *model.CommandArgs) (
 	if p.configuration.AccountLevelApp {
 		token, err := p.getSuperuserToken()
 		if err == nil && token != nil {
-			return alreadyConnectedString, nil
+			return alreadyConnectedText, nil
 		}
 
 		appErr := p.storeOAuthUserState(user.Id, extra.ChannelId, true)
@@ -204,7 +204,7 @@ func (p *Plugin) runConnectCommand(user *model.User, extra *model.CommandArgs) (
 	// OAuth User Level
 	_, err := p.fetchOAuthUserInfo(zoomUserByMMID, user.Id)
 	if err == nil {
-		return alreadyConnectedString, nil
+		return alreadyConnectedText, nil
 	}
 
 	appErr := p.storeOAuthUserState(user.Id, extra.ChannelId, true)
@@ -307,11 +307,12 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 		zoom.AddCommand(connect)
 		zoom.AddCommand(disconnect)
 	}
-	// setting
+
+	// setting to allow the user decide whether to use its PMI on instant meetings.
 	setting := model.NewAutocompleteData("setting", "[command]", "Configurates options")
 	zoom.AddCommand(setting)
 
-	// usePMI
+	// usePMI seting so user can choose to use their PMI or new ID to create new meeting in zoom.
 	usePMI := model.NewAutocompleteData("use_pmi", "", "Use Personal Meeting ID")
 	usePMIItems := []model.AutocompleteListItem{{
 		HelpText: "Ask to start meeting with or without using Personal Meeting ID",
@@ -326,7 +327,7 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	usePMI.AddStaticListArgument("", false, usePMIItems)
 	setting.AddCommand(usePMI)
 
-	// help
+	// help to help the user if got stuck in understanding the commands
 	help := model.NewAutocompleteData("help", "", "Display usage")
 	zoom.AddCommand(help)
 

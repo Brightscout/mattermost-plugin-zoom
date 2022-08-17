@@ -150,7 +150,7 @@ func TestPlugin(t *testing.T) {
 			})
 			api.On("GetPreferencesForUser", mock.AnythingOfType("string")).Return([]model.Preference{
 				{
-					UserId:   "theuserid",
+					UserId:   "test-userid",
 					Category: zoomPreferenceCategory,
 					Name:     zoomPMISettingName,
 					Value:    trueString,

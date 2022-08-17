@@ -67,4 +67,3 @@ jobs:
           asset_path: dist/${{ steps.build.outputs.BUNDLE_NAME }}
           asset_name: ${{ steps.build.outputs.BUNDLE_NAME }}
           asset_content_type: application/gzip
-          
