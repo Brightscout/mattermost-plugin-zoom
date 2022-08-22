@@ -248,7 +248,7 @@ func (p *Plugin) SetZoomSuperUserToken(token *oauth2.Token) error {
 
 func (p *Plugin) isCloudLicense() bool {
 	license := p.API.GetLicense()
-	return license != nil && *license.Features.Cloud
+	return license != nil && license.Features != nil && license.Features.Cloud != nil && *license.Features.Cloud
 }
 
 func (p *Plugin) OAuthEnabled() bool {

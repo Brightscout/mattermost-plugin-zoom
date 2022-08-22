@@ -20,7 +20,7 @@ const (
 	settingPMIHelpText = `* |/zoom setting use_pmi [true/false/ask]| - 
 		enable / disable / undecide to use PMI to create meeting
 	`
-	alreadyConnectedText = "Already connected"
+	alreadyConnectedText   = "Already connected"
 	zoomPreferenceCategory = "plugin:zoom"
 	zoomPMISettingName     = "use-pmi"
 	zoomPMISettingValueAsk = "ask"
