@@ -16,15 +16,15 @@ const (
 	starterText        = "###### Mattermost Zoom Plugin - Slash Command Help\n"
 	helpText           = `* |/zoom start| - Start a zoom meeting`
 	oAuthHelpText      = `* |/zoom disconnect| - Disconnect from zoom`
-	settingHelpText    = `* |/zoom setting| - Configure setting options`
-	settingPMIHelpText = `* |/zoom setting use_pmi [true/false/ask]| - 
+	settingHelpText    = `* |/zoom settings| - Configure settings options`
+	settingPMIHelpText = `* |/zoom settings use_pmi [true/false/ask]| - 
 		enable / disable / undecide to use PMI to create meeting
 	`
 	alreadyConnectedText   = "Already connected"
 	zoomPreferenceCategory = "plugin:zoom"
 	zoomPMISettingName     = "use-pmi"
 	zoomPMISettingValueAsk = "ask"
-	preferenceUpdateError  = "Cannot update preference in zoom setting"
+	preferenceUpdateError  = "Cannot update preference in zoom settings"
 )
 
 const (
@@ -43,7 +43,7 @@ func (p *Plugin) getCommand() (*model.Command, error) {
 	return &model.Command{
 		Trigger:              "zoom",
 		AutoComplete:         true,
-		AutoCompleteDesc:     "Available commands: start, disconnect, help, setting",
+		AutoCompleteDesc:     "Available commands: start, disconnect, help, settings",
 		AutoCompleteHint:     "[command]",
 		AutocompleteData:     p.getAutocompleteData(),
 		AutocompleteIconData: iconData,
@@ -98,8 +98,8 @@ func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (str
 		return p.runDisconnectCommand(user)
 	case actionHelp, "":
 		return p.runHelpCommand()
-	case "setting":
-		return p.runSettingCommand(split[2:], user)
+	case "settings":
+		return p.runSettingCommand(args, split[2:], user)
 	default:
 		return fmt.Sprintf("Unknown action %v", action), nil
 	}
@@ -151,9 +151,9 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 
 	if userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(user.Id); getUserPMISettingErr == nil {
 		switch userPMISettingPref {
-		case "", zoomPMISettingValueAsk:
+		case zoomPMISettingValueAsk:
 			p.askUserPMIMeeting(user.Id, args.ChannelId)
-		case trueString:
+		case "", trueString:
 			meetingID = zoomUser.Pmi
 		default:
 			meetingID, createMeetingErr = p.createMeetingWithoutPMI(
@@ -250,8 +250,9 @@ func (p *Plugin) runHelpCommand() (string, error) {
 	return text, nil
 }
 
-// run "/zoom setting" command, e.g: /zoom setting use_pmi true
-func (p *Plugin) runSettingCommand(settingArgs []string, user *model.User) (string, error) {
+// run "/zoom settings" command, e.g: /zoom settings use_pmi true
+func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string, user *model.User) (string, error) {
+
 	settingAction := ""
 	if len(settingArgs) > 0 {
 		settingAction = settingArgs[0]
@@ -260,22 +261,23 @@ func (p *Plugin) runSettingCommand(settingArgs []string, user *model.User) (stri
 	case "use_pmi":
 		// here process the use_pmi command
 		if len(settingArgs) > 1 {
-			return p.runPMISettingCommand(settingArgs[1], user)
+			return p.runPMISettingCommand(settingArgs[1], user.Id)
 		}
 		return "Set PMI option to \"true\"|\"false\"|\"ask\"", nil
 	case "":
-		return strings.ReplaceAll(starterText+settingPMIHelpText, "|", "`"), nil
+		p.updatePMI(user.Id, args.ChannelId)
+		return "", nil
 	default:
 		return fmt.Sprintf("Unknown Action %v", settingAction), nil
 	}
 }
 
-func (p *Plugin) runPMISettingCommand(usePMIValue string, user *model.User) (string, error) {
+func (p *Plugin) runPMISettingCommand(usePMIValue string, userID string) (string, error) {
 	switch usePMIValue {
 	case trueString, falseString, zoomPMISettingValueAsk:
-		if appError := p.API.UpdatePreferencesForUser(user.Id, []model.Preference{
+		if appError := p.API.UpdatePreferencesForUser(userID, []model.Preference{
 			{
-				UserId:   user.Id,
+				UserId:   userID,
 				Category: zoomPreferenceCategory,
 				Name:     zoomPMISettingName,
 				Value:    usePMIValue,
@@ -285,15 +287,15 @@ func (p *Plugin) runPMISettingCommand(usePMIValue string, user *model.User) (str
 		}
 		return fmt.Sprintf("Update successfully, use_pmi: %v", usePMIValue), nil
 	default:
-		return fmt.Sprintf("Unknown setting option %v", usePMIValue), nil
+		return fmt.Sprintf("Unknown settings option %v", usePMIValue), nil
 	}
 }
 
 // getAutocompleteData retrieves auto-complete data for the "/zoom" command
 func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
-	available := "start, help, setting"
+	available := "start, help, settings"
 	if p.configuration.EnableOAuth && !p.configuration.AccountLevelApp {
-		available = "start, connect, disconnect, help, setting"
+		available = "start, connect, disconnect, help, settings"
 	}
 	zoom := model.NewAutocompleteData("zoom", "[command]", fmt.Sprintf("Available commands: %s", available))
 
@@ -309,20 +311,20 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	}
 
 	// setting to allow the user decide whether to use its PMI on instant meetings.
-	setting := model.NewAutocompleteData("setting", "[command]", "Configurates options")
+	setting := model.NewAutocompleteData("settings", "[command]", "Update your preferences")
 	zoom.AddCommand(setting)
 
 	// usePMI seting so user can choose to use their PMI or new ID to create new meeting in zoom.
-	usePMI := model.NewAutocompleteData("use_pmi", "", "Use Personal Meeting ID")
+	usePMI := model.NewAutocompleteData("use_pmi", "", "Preference for using your Personal Meeting ID")
 	usePMIItems := []model.AutocompleteListItem{{
-		HelpText: "Ask to start meeting with or without using Personal Meeting ID",
-		Item:     "ask",
-	}, {
 		HelpText: "Start meeting using Personal Meeting ID",
 		Item:     "true",
 	}, {
 		HelpText: "Start meeting without using Personal Meeting ID",
 		Item:     "false",
+	}, {
+		HelpText: "Ask to start meeting with or without using Personal Meeting ID",
+		Item:     "ask",
 	}}
 	usePMI.AddStaticListArgument("", false, usePMIItems)
 	setting.AddCommand(usePMI)

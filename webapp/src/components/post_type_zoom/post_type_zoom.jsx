@@ -164,7 +164,6 @@ export default class PostTypeZoom extends React.PureComponent {
             subtitle = 'What do you want to do?';
             content = (
                 <div>
-                    <div>
                         <a
                             className='btn btn-lg btn-primary'
                             style={style.button}
@@ -173,8 +172,6 @@ export default class PostTypeZoom extends React.PureComponent {
                         >
                             {'CREATE NEW MEETING'}
                         </a>
-                    </div>
-                    <div>
                         <a
                             className='btn btn-lg btn-primary'
                             style={style.button}
@@ -188,7 +185,6 @@ export default class PostTypeZoom extends React.PureComponent {
                             />
                             {'JOIN EXISTING MEETING'}
                         </a>
-                    </div>
                 </div>
             );
         } else if (props.task === 'setting/use_PMI') {
@@ -260,6 +256,7 @@ const getStyle = makeStyleFromTheme((theme) => {
             letterSpacing: '1px',
             lineHeight: '19px',
             marginTop: '12px',
+            marginRight: '12px',
             borderRadius: '4px',
             color: theme.buttonColor,
         },
