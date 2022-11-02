@@ -13,13 +13,10 @@ import (
 )
 
 const (
-	starterText        = "###### Mattermost Zoom Plugin - Slash Command Help\n"
-	helpText           = `* |/zoom start| - Start a zoom meeting`
-	oAuthHelpText      = `* |/zoom disconnect| - Disconnect from zoom`
-	settingHelpText    = `* |/zoom settings| - Configure settings options`
-	settingPMIHelpText = `* |/zoom settings use_pmi [true/false/ask]| - 
-		enable / disable / undecide to use PMI to create meeting
-	`
+	starterText            = "###### Mattermost Zoom Plugin - Slash Command Help\n"
+	helpText               = `* |/zoom start| - Start a zoom meeting`
+	oAuthHelpText          = `* |/zoom disconnect| - Disconnect from zoom`
+	settingHelpText        = `* |/zoom settings| - Configure settings options`
 	alreadyConnectedText   = "Already connected"
 	zoomPreferenceCategory = "plugin:zoom"
 	zoomPMISettingName     = "use-pmi"
@@ -250,7 +247,7 @@ func (p *Plugin) runHelpCommand() (string, error) {
 	return text, nil
 }
 
-// run "/zoom settings" command, e.g: /zoom settings use_pmi true
+// run "/zoom settings" command
 func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string, user *model.User) (string, error) {
 
 	settingAction := ""
@@ -258,12 +255,6 @@ func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string
 		settingAction = settingArgs[0]
 	}
 	switch settingAction {
-	case "use_pmi":
-		// here process the use_pmi command
-		if len(settingArgs) > 1 {
-			return p.runPMISettingCommand(settingArgs[1], user.Id)
-		}
-		return "Set PMI option to \"true\"|\"false\"|\"ask\"", nil
 	case "":
 		p.updatePMI(user.Id, args.ChannelId)
 		return "", nil
@@ -272,7 +263,7 @@ func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string
 	}
 }
 
-func (p *Plugin) runPMISettingCommand(usePMIValue string, userID string) (string, error) {
+func (p *Plugin) updateUserPersonalSettings(usePMIValue string, userID string) (string, error) {
 	switch usePMIValue {
 	case trueString, falseString, zoomPMISettingValueAsk:
 		if appError := p.API.UpdatePreferencesForUser(userID, []model.Preference{
@@ -313,21 +304,6 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	// setting to allow the user decide whether to use its PMI on instant meetings.
 	setting := model.NewAutocompleteData("settings", "[command]", "Update your preferences")
 	zoom.AddCommand(setting)
-
-	// usePMI seting so user can choose to use their PMI or new ID to create new meeting in zoom.
-	usePMI := model.NewAutocompleteData("use_pmi", "", "Preference for using your Personal Meeting ID")
-	usePMIItems := []model.AutocompleteListItem{{
-		HelpText: "Start meeting using Personal Meeting ID",
-		Item:     "true",
-	}, {
-		HelpText: "Start meeting without using Personal Meeting ID",
-		Item:     "false",
-	}, {
-		HelpText: "Ask to start meeting with or without using Personal Meeting ID",
-		Item:     "ask",
-	}}
-	usePMI.AddStaticListArgument("", false, usePMIItems)
-	setting.AddCommand(usePMI)
 
 	// help to help the user if got stuck in understanding the commands
 	help := model.NewAutocompleteData("help", "", "Display usage")

@@ -107,16 +107,14 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 	post := &model.Post{
 		ChannelId: channelID,
 		UserId:    p.botUserID,
+		Id:        postActionIntegrationRequest.PostId,
 	}
 
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
-
-	response = &model.PostActionIntegrationResponse{
-		Update: post,
-	}
+	p.API.UpdateEphemeralPost(userID, post)
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(post); err != nil {
 		p.API.LogWarn("failed to write response", "error", err.Error())
 	}
 
@@ -172,7 +170,8 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	post := p.createPostToUpdatePMI(action, channel.Id)
+	slackAttachment := p.slackAttachmentToUpdatePMI(action, channel.Id)
+
 	var val string
 	if action == "Yes" {
 		val = "true"
@@ -182,14 +181,19 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 		val = "ask"
 	}
 
-	p.runPMISettingCommand(val, mattermostUserID)
+	p.updateUserPersonalSettings(val, mattermostUserID)
 
-	response = &model.PostActionIntegrationResponse{
-		Update: post,
+	post := &model.Post{
+		ChannelId: channel.Id,
+		UserId:    p.botUserID,
+		Id:        postActionIntegrationRequest.PostId,
 	}
 
+	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
+	p.API.UpdateEphemeralPost(mattermostUserID, post)
+
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	if err := json.NewEncoder(w).Encode(post); err != nil {
 		p.API.LogWarn("failed to write response", "error", err.Error())
 	}
 
@@ -421,8 +425,8 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 	}
 
 	post.Message = "The meeting has ended."
+	post.Props["meeting_status"] = zoom.WebhookStatusEnded
 	post.Props["attachments"] = []*model.SlackAttachment{&slackAttachment}
-	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
 
 	_, appErr = p.API.UpdatePost(post)
 	if appErr != nil {
@@ -441,7 +445,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 		p.API.LogWarn("failed to write response", "error", err.Error())
 	}
 }
-func (p *Plugin) createPostToUpdatePMI(currentValue string, channelID string) *model.Post {
+func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID string) model.SlackAttachment {
 	apiEndPoint := "/plugins/" + manifest.ID + "/api/v1/updatePMI"
 	slackAttachment := model.SlackAttachment{
 		Fallback: "You can not set your preference",
@@ -452,7 +456,7 @@ func (p *Plugin) createPostToUpdatePMI(currentValue string, channelID string) *m
 				Id:    "Yes",
 				Name:  "Yes",
 				Type:  "button",
-				Style: "default",
+				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
@@ -464,7 +468,7 @@ func (p *Plugin) createPostToUpdatePMI(currentValue string, channelID string) *m
 				Id:    "No",
 				Name:  "No",
 				Type:  "button",
-				Style: "default",
+				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
@@ -476,7 +480,7 @@ func (p *Plugin) createPostToUpdatePMI(currentValue string, channelID string) *m
 				Id:    "Ask",
 				Name:  "Ask",
 				Type:  "button",
-				Style: "default",
+				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
@@ -487,13 +491,7 @@ func (p *Plugin) createPostToUpdatePMI(currentValue string, channelID string) *m
 		},
 	}
 
-	post := &model.Post{
-		ChannelId: channelID,
-		UserId:    p.botUserID,
-	}
-
-	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
-	return post
+	return slackAttachment
 }
 
 func (p *Plugin) updatePMI(userID string, channelID string) {
@@ -510,8 +508,15 @@ func (p *Plugin) updatePMI(userID string, channelID string) {
 	} else {
 		currentValue = "Ask"
 	}
-	post := p.createPostToUpdatePMI(currentValue, channelID)
-	p.API.CreatePost(post)
+	slackAttachment := p.slackAttachmentToUpdatePMI(currentValue, channelID)
+	post := &model.Post{
+		ChannelId: channelID,
+		UserId:    p.botUserID,
+	}
+
+	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
+
+	p.API.SendEphemeralPost(userID, post)
 }
 
 func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID string, rootID string, topic string) error {
@@ -570,7 +575,7 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 				Id:    "WithPMI",
 				Name:  "USE PERSONAL MEETING ID",
 				Type:  "button",
-				Style: "default",
+				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
@@ -584,7 +589,7 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 				Id:    "WithoutPMI",
 				Name:  "USE A UNIQUE MEETING ID",
 				Type:  "button",
-				Style: "default",
+				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
@@ -602,7 +607,7 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 		UserId:    p.botUserID,
 	}
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
-	p.API.CreatePost(post)
+	p.API.SendEphemeralPost(userID, post)
 
 }
 
