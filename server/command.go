@@ -21,7 +21,6 @@ const (
 	zoomPreferenceCategory = "plugin:zoom"
 	zoomPMISettingName     = "use-pmi"
 	zoomPMISettingValueAsk = "ask"
-	preferenceUpdateError  = "Cannot update preference in zoom settings"
 )
 
 const (
@@ -35,6 +34,13 @@ func (p *Plugin) getCommand() (*model.Command, error) {
 	iconData, err := command.GetIconData(p.API, "assets/profile.svg")
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get icon data")
+	}
+
+	canConnect := p.configuration.EnableOAuth && !p.configuration.AccountLevelApp
+
+	autoCompleteDesc := "Available commands: start, help"
+	if canConnect {
+		autoCompleteDesc = "Available commands: start, connect, disconnect, help"
 	}
 
 	return &model.Command{
@@ -249,7 +255,6 @@ func (p *Plugin) runHelpCommand() (string, error) {
 
 // run "/zoom settings" command
 func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string, user *model.User) (string, error) {
-
 	settingAction := ""
 	if len(settingArgs) > 0 {
 		settingAction = settingArgs[0]
@@ -263,23 +268,18 @@ func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string
 	}
 }
 
-func (p *Plugin) updateUserPersonalSettings(usePMIValue string, userID string) (string, error) {
-	switch usePMIValue {
-	case trueString, falseString, zoomPMISettingValueAsk:
-		if appError := p.API.UpdatePreferencesForUser(userID, []model.Preference{
-			{
-				UserId:   userID,
-				Category: zoomPreferenceCategory,
-				Name:     zoomPMISettingName,
-				Value:    usePMIValue,
-			},
-		}); appError != nil {
-			return preferenceUpdateError, nil
-		}
-		return fmt.Sprintf("Update successfully, use_pmi: %v", usePMIValue), nil
-	default:
-		return fmt.Sprintf("Unknown settings option %v", usePMIValue), nil
+func (p *Plugin) updateUserPersonalSettings(usePMIValue string, userID string) *model.AppError {
+	if appError := p.API.UpdatePreferencesForUser(userID, []model.Preference{
+		{
+			UserId:   userID,
+			Category: zoomPreferenceCategory,
+			Name:     zoomPMISettingName,
+			Value:    usePMIValue,
+		},
+	}); appError != nil {
+		return appError
 	}
+	return nil
 }
 
 // getAutocompleteData retrieves auto-complete data for the "/zoom" command
@@ -288,15 +288,15 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	if p.configuration.EnableOAuth && !p.configuration.AccountLevelApp {
 		available = "start, connect, disconnect, help, settings"
 	}
-	zoom := model.NewAutocompleteData("zoom", "[command]", fmt.Sprintf("Available commands: %s", available))
 
-	start := model.NewAutocompleteData("start", "[meeting topic]", "Starts a Zoom meeting")
+	zoom := model.NewAutocompleteData("zoom", "[command]", fmt.Sprintf("Available commands: %s", available))
+	start := model.NewAutocompleteData("start", "[meeting topic]", "Starts a Zoom meeting with a topic (optional)")
 	zoom.AddCommand(start)
 
 	// no point in showing the 'disconnect' option if OAuth is not enabled
 	if p.OAuthEnabled() && !p.configuration.AccountLevelApp {
 		connect := model.NewAutocompleteData("connect", "", "Connect to Zoom")
-		disconnect := model.NewAutocompleteData("disconnect", "", "Disonnects from Zoom")
+		disconnect := model.NewAutocompleteData("disconnect", "", "Disconnect from Zoom")
 		zoom.AddCommand(connect)
 		zoom.AddCommand(disconnect)
 	}

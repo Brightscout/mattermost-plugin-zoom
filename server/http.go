@@ -27,7 +27,10 @@ const (
 	defaultMeetingTopic      = "Zoom Meeting"
 	zoomOAuthUserStateLength = 4
 	settingDataError         = "something wrong while getting settings data"
-	askForPMIMeeting         = "Would you like to create a meeting with your PMI?"
+	askForPMIMeeting         = "Would you like to use your personal meeting ID?"
+	Yes                      = "Yes"
+	No                       = "No"
+	Ask                      = "Ask"
 )
 
 type startMeetingRequest struct {
@@ -92,7 +95,6 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewEncoder(w).Encode(response); err != nil {
 			p.API.LogWarn("failed to write response", "error", err.Error())
 		}
-		json.NewEncoder(w).Encode(response)
 		return
 	}
 
@@ -108,6 +110,7 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 		ChannelId: channelID,
 		UserId:    p.botUserID,
 		Id:        postActionIntegrationRequest.PostId,
+		CreateAt:  time.Now().Unix() * 1000,
 	}
 
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
@@ -130,7 +133,7 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 	if authErr != nil {
 		return
 	}
-	var meetingID int = -1
+	var meetingID int
 	var createMeetingErr error = nil
 	if action == "USE PERSONAL MEETING ID" {
 		meetingID = zoomUser.Pmi
@@ -144,8 +147,8 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 		return
 	}
 	p.trackMeetingStart(userID, telemetryStartSourceCommand)
-
 }
+
 func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	response := &model.PostActionIntegrationResponse{}
 	decoder := json.NewDecoder(r.Body)
@@ -173,30 +176,33 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	slackAttachment := p.slackAttachmentToUpdatePMI(action, channel.Id)
 
 	var val string
-	if action == "Yes" {
-		val = "true"
-	} else if action == "No" {
-		val = "false"
-	} else {
-		val = "ask"
+	switch action {
+	case Ask:
+		val = zoomPMISettingValueAsk
+	case No:
+		val = falseString
+	default:
+		val = trueString
 	}
 
-	p.updateUserPersonalSettings(val, mattermostUserID)
+	err = p.updateUserPersonalSettings(val, mattermostUserID)
+	if err != nil {
+		return
+	}
 
 	post := &model.Post{
 		ChannelId: channel.Id,
 		UserId:    p.botUserID,
 		Id:        postActionIntegrationRequest.PostId,
+		CreateAt:  time.Now().Unix() * 1000,
 	}
 
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
 	p.API.UpdateEphemeralPost(mattermostUserID, post)
-
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
 		p.API.LogWarn("failed to write response", "error", err.Error())
 	}
-
 }
 
 func (p *Plugin) connectUserToZoom(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +282,8 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	zoomUser, authErr := client.GetUser(user)
+	firstConnect := true
+	zoomUser, authErr := client.GetUser(user, firstConnect)
 	if authErr != nil {
 		if p.configuration.AccountLevelApp && !justConnect {
 			http.Error(w, "Connection completed but there was an error creating the meeting. "+authErr.Message, http.StatusInternalServerError)
@@ -453,38 +460,38 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID strin
 		Text:     fmt.Sprintf("\n\nDo you want to use your Personal Meeting ID when starting a meeting?\n\nCurrent value: %s", currentValue),
 		Actions: []*model.PostAction{
 			{
-				Id:    "Yes",
-				Name:  "Yes",
+				Id:    Yes,
+				Name:  Yes,
 				Type:  "button",
 				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action": "Yes",
+						"action": Yes,
 					},
 				},
 			},
 			{
-				Id:    "No",
-				Name:  "No",
+				Id:    No,
+				Name:  No,
 				Type:  "button",
 				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action": "No",
+						"action": No,
 					},
 				},
 			},
 			{
-				Id:    "Ask",
-				Name:  "Ask",
+				Id:    Ask,
+				Name:  Ask,
 				Type:  "button",
 				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action": "Ask",
+						"action": Ask,
 					},
 				},
 			},
@@ -495,18 +502,18 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID strin
 }
 
 func (p *Plugin) updatePMI(userID string, channelID string) {
-	currentValue := "Yes"
+	var currentValue string
 	if userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(userID); getUserPMISettingErr == nil {
 		switch userPMISettingPref {
 		case zoomPMISettingValueAsk:
-			currentValue = "Ask"
+			currentValue = Ask
 		case "", trueString:
-			currentValue = "Yes"
+			currentValue = Yes
 		default:
-			currentValue = "No"
+			currentValue = No
 		}
 	} else {
-		currentValue = "Ask"
+		currentValue = Ask
 	}
 	slackAttachment := p.slackAttachmentToUpdatePMI(currentValue, channelID)
 	post := &model.Post{
@@ -569,7 +576,7 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 	apiEndPoint := "/plugins/" + manifest.ID + "/api/v1/askPMI"
 
 	slackAttachment := model.SlackAttachment{
-		Pretext: "Would you like to use your personal meeting ID?",
+		Pretext: askForPMIMeeting,
 		Actions: []*model.PostAction{
 			{
 				Id:    "WithPMI",
@@ -608,7 +615,6 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 	}
 	model.ParseSlackAttachment(post, []*model.SlackAttachment{&slackAttachment})
 	p.API.SendEphemeralPost(userID, post)
-
 }
 
 func (p *Plugin) getPMISettingData(userID string) (string, error) {
