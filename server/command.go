@@ -38,15 +38,15 @@ func (p *Plugin) getCommand() (*model.Command, error) {
 
 	canConnect := p.configuration.EnableOAuth && !p.configuration.AccountLevelApp
 
-	autoCompleteDesc := "Available commands: start, help"
+	autoCompleteDesc := "Available commands: start, help, settings"
 	if canConnect {
-		autoCompleteDesc = "Available commands: start, connect, disconnect, help"
+		autoCompleteDesc = "Available commands: start, connect, disconnect, help, settings"
 	}
 
 	return &model.Command{
 		Trigger:              "zoom",
 		AutoComplete:         true,
-		AutoCompleteDesc:     "Available commands: start, disconnect, help, settings",
+		AutoCompleteDesc:     autoCompleteDesc,
 		AutoCompleteHint:     "[command]",
 		AutocompleteData:     p.getAutocompleteData(),
 		AutocompleteIconData: iconData,
@@ -284,6 +284,8 @@ func (p *Plugin) updateUserPersonalSettings(usePMIValue string, userID string) *
 
 // getAutocompleteData retrieves auto-complete data for the "/zoom" command
 func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
+	canConnect := p.OAuthEnabled() && !p.configuration.AccountLevelApp
+
 	available := "start, help, settings"
 	if p.configuration.EnableOAuth && !p.configuration.AccountLevelApp {
 		available = "start, connect, disconnect, help, settings"
@@ -294,7 +296,7 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 	zoom.AddCommand(start)
 
 	// no point in showing the 'disconnect' option if OAuth is not enabled
-	if p.OAuthEnabled() && !p.configuration.AccountLevelApp {
+	if canConnect {
 		connect := model.NewAutocompleteData("connect", "", "Connect to Zoom")
 		disconnect := model.NewAutocompleteData("disconnect", "", "Disconnect from Zoom")
 		zoom.AddCommand(connect)
