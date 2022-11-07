@@ -161,27 +161,27 @@ export default class PostTypeZoom extends React.PureComponent {
             subtitle = 'What do you want to do?';
             content = (
                 <div>
-                        <a
-                            className='btn btn-lg btn-primary'
-                            style={style.button}
-                            rel='noopener noreferrer'
-                            onClick={() => this.props.actions.startMeeting(this.props.currentChannelId, true, props.meeting_topic)}
-                        >
-                            {'CREATE NEW MEETING'}
-                        </a>
-                        <a
-                            className='btn btn-lg btn-primary'
-                            style={style.button}
-                            rel='noopener noreferrer'
-                            target='_blank'
-                            href={props.meeting_link}
-                        >
-                            <i
-                                style={style.buttonIcon}
-                                dangerouslySetInnerHTML={{__html: Svgs.VIDEO_CAMERA_3}}
-                            />
-                            {'JOIN EXISTING MEETING'}
-                        </a>
+                    <a
+                        className='btn btn-lg btn-primary'
+                        style={style.button}
+                        rel='noopener noreferrer'
+                        onClick={() => this.props.actions.startMeeting(this.props.currentChannelId, true, props.meeting_topic)}
+                    >
+                        {'CREATE NEW MEETING'}
+                    </a>
+                    <a
+                        className='btn btn-lg btn-primary'
+                        style={style.button}
+                        rel='noopener noreferrer'
+                        target='_blank'
+                        href={props.meeting_link}
+                    >
+                        <i
+                            style={style.buttonIcon}
+                            dangerouslySetInnerHTML={{__html: Svgs.VIDEO_CAMERA_3}}
+                        />
+                        {'JOIN EXISTING MEETING'}
+                    </a>
                 </div>
             );
         }
