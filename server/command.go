@@ -169,7 +169,7 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 		return "", nil
 	}
 	if meetingID == -1 || createMeetingErr != nil {
-		return "", errors.New("error while create new meeting")
+		return "", errors.New("error while creating a new meeting")
 	}
 	if postMeetingErr := p.postMeeting(user, meetingID, args.ChannelId, args.RootId, defaultMeetingTopic); postMeetingErr != nil {
 		return "", postMeetingErr
@@ -267,7 +267,7 @@ func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string
 	}
 }
 
-func (p *Plugin) updateUserPersonalSettings(usePMIValue string, userID string) *model.AppError {
+func (p *Plugin) updateUserPersonalSettings(usePMIValue, userID string) *model.AppError {
 	if appError := p.API.UpdatePreferencesForUser(userID, []model.Preference{
 		{
 			UserId:   userID,
@@ -302,7 +302,7 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 		zoom.AddCommand(disconnect)
 	}
 
-	// setting to allow the user to decide whether to use its PMI on instant meetings.
+	// setting to allow the user to decide whether to use PMI for instant meetings
 	setting := model.NewAutocompleteData("settings", "[command]", "Update your preferences")
 	zoom.AddCommand(setting)
 

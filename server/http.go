@@ -82,7 +82,7 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 		p.API.LogError("Error decoding PostActionIntegrationRequest params.", "Error", err.Error())
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			http.Error(w, "failed to write response", http.StatusInternalServerError)
+			http.Error(w, "failed to write the response", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -107,7 +107,7 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		http.Error(w, "failed to write response", http.StatusInternalServerError)
+		http.Error(w, "failed to write the response", http.StatusInternalServerError)
 	}
 
 	p.startMeeting(action, userID, channelID)
@@ -116,7 +116,7 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
-		p.API.LogWarn("failed to get user from userID", "error", appErr.Error())
+		p.API.LogWarn("failed to get the user from userID", "error", appErr.Error())
 		return
 	}
 	zoomUser, authErr := p.authenticateAndFetchZoomUser(user)
@@ -150,7 +150,7 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 		p.API.LogError("Error decoding PostActionIntegrationRequest params.", "Error", err.Error())
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			http.Error(w, "failed to write response", http.StatusInternalServerError)
+			http.Error(w, "failed to write the response", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -195,7 +195,7 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	p.API.UpdateEphemeralPost(mattermostUserID, post)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		http.Error(w, "failed to write response", http.StatusInternalServerError)
+		http.Error(w, "failed to write the response", http.StatusInternalServerError)
 	}
 }
 
@@ -443,7 +443,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		http.Error(w, "failed to write response", http.StatusInternalServerError)
+		http.Error(w, "failed to write the response", http.StatusInternalServerError)
 	}
 }
 func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID string) model.SlackAttachment {
@@ -728,7 +728,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func (p *Plugin) createMeetingWithoutPMI(user *model.User, zoomUser *zoom.User, channelID string, topic string) (int, error) {
+func (p *Plugin) createMeetingWithoutPMI(user *model.User, zoomUser *zoom.User, channelID, topic string) (int, error) {
 	client, _, err := p.getActiveClient(user)
 	if err != nil {
 		p.API.LogWarn("Error getting the client", "err", err)
