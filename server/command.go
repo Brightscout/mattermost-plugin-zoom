@@ -28,6 +28,7 @@ const (
 	actionStart      = "start"
 	actionDisconnect = "disconnect"
 	actionHelp       = "help"
+	settings         = "settings"
 )
 
 func (p *Plugin) getCommand() (*model.Command, error) {
@@ -101,7 +102,7 @@ func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (str
 		return p.runDisconnectCommand(user)
 	case actionHelp, "":
 		return p.runHelpCommand()
-	case "settings":
+	case settings:
 		return p.runSettingCommand(args, split[2:], user)
 	default:
 		return fmt.Sprintf("Unknown action %v", action), nil
@@ -159,9 +160,7 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 		case "", trueString:
 			meetingID = zoomUser.Pmi
 		default:
-			meetingID, createMeetingErr = p.createMeetingWithoutPMI(
-				user, zoomUser, args.ChannelId, defaultMeetingTopic,
-			)
+			meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, defaultMeetingTopic)
 		}
 	} else {
 		p.askUserPMIMeeting(user.Id, args.ChannelId)
@@ -303,11 +302,10 @@ func (p *Plugin) getAutocompleteData() *model.AutocompleteData {
 		zoom.AddCommand(disconnect)
 	}
 
-	// setting to allow the user decide whether to use its PMI on instant meetings.
+	// setting to allow the user to decide whether to use its PMI on instant meetings.
 	setting := model.NewAutocompleteData("settings", "[command]", "Update your preferences")
 	zoom.AddCommand(setting)
 
-	// help to help the user if got stuck in understanding the commands
 	help := model.NewAutocompleteData("help", "", "Display usage")
 	zoom.AddCommand(help)
 

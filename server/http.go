@@ -26,11 +26,17 @@ import (
 const (
 	defaultMeetingTopic      = "Zoom Meeting"
 	zoomOAuthUserStateLength = 4
-	settingDataError         = "something wrong while getting settings data"
+	settingDataError         = "something went wrong while getting settings data"
 	askForPMIMeeting         = "Would you like to use your personal meeting ID?"
 	Yes                      = "Yes"
 	No                       = "No"
 	Ask                      = "Ask"
+	Action                   = "action"
+	UserID                   = "userID"
+	ChannelID                = "channelID"
+	UsePersonalMeetingID     = "USE PERSONAL MEETING ID"
+	UseAUniqueMeetingID      = "USE A UNIQUE MEETING ID"
+	MattermostUserID         = "Mattermost-User-ID"
 )
 
 type startMeetingRequest struct {
@@ -68,23 +74,6 @@ func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (p *Plugin) GetPostWithSlackAttachment(mattermostUserID string, attachments ...*model.SlackAttachment) (*model.Post, error) {
-	channel, err := p.API.GetDirectChannel(mattermostUserID, p.botUserID)
-	if err != nil {
-		p.API.LogInfo("Couldn't get bot's DM channel", "user_id", mattermostUserID)
-		return nil, err
-	}
-
-	post := &model.Post{
-		ChannelId: channel.Id,
-		UserId:    p.botUserID,
-	}
-
-	model.ParseSlackAttachment(post, attachments)
-
-	return post, nil
-}
-
 func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 	response := &model.PostActionIntegrationResponse{}
 	decoder := json.NewDecoder(r.Body)
@@ -93,14 +82,14 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 		p.API.LogError("Error decoding PostActionIntegrationRequest params.", "Error", err.Error())
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			p.API.LogWarn("failed to write response", "error", err.Error())
+			http.Error(w, "failed to write response", http.StatusInternalServerError)
 		}
 		return
 	}
 
-	action := postActionIntegrationRequest.Context["action"].(string)
-	userID := postActionIntegrationRequest.Context["userID"].(string)
-	channelID := postActionIntegrationRequest.Context["channelID"].(string)
+	action := postActionIntegrationRequest.Context[Action].(string)
+	userID := postActionIntegrationRequest.Context[UserID].(string)
+	channelID := postActionIntegrationRequest.Context[ChannelID].(string)
 
 	slackAttachment := model.SlackAttachment{
 		Text: fmt.Sprintf("You have selected `%s` to start a meeting.", action),
@@ -118,7 +107,7 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		p.API.LogWarn("failed to write response", "error", err.Error())
+		http.Error(w, "failed to write response", http.StatusInternalServerError)
 	}
 
 	p.startMeeting(action, userID, channelID)
@@ -127,23 +116,27 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
+		p.API.LogWarn("failed to get user from userID", "error", appErr.Error())
 		return
 	}
 	zoomUser, authErr := p.authenticateAndFetchZoomUser(user)
 	if authErr != nil {
+		p.API.LogWarn("failed to authenticate and fetch zoom user", "error", appErr.Error())
 		return
 	}
 	var meetingID int
 	var createMeetingErr error = nil
-	if action == "USE PERSONAL MEETING ID" {
+	if action == UsePersonalMeetingID {
 		meetingID = zoomUser.Pmi
 	} else {
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, channelID, defaultMeetingTopic)
 	}
 	if createMeetingErr != nil {
+		p.API.LogWarn("failed to create meeting", "error", createMeetingErr.Error())
 		return
 	}
 	if postMeetingErr := p.postMeeting(user, meetingID, channelID, "", defaultMeetingTopic); postMeetingErr != nil {
+		p.API.LogWarn("failed to post meeting", "error", postMeetingErr.Error())
 		return
 	}
 	p.trackMeetingStart(userID, telemetryStartSourceCommand)
@@ -157,13 +150,13 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 		p.API.LogError("Error decoding PostActionIntegrationRequest params.", "Error", err.Error())
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			p.API.LogWarn("failed to write response", "error", err.Error())
+			http.Error(w, "failed to write response", http.StatusInternalServerError)
 		}
 		return
 	}
-	action := postActionIntegrationRequest.Context["action"].(string)
+	action := postActionIntegrationRequest.Context[Action].(string)
 
-	mattermostUserID := r.Header.Get("Mattermost-User-ID")
+	mattermostUserID := r.Header.Get(MattermostUserID)
 	if mattermostUserID == "" {
 		http.Error(w, "Not authorized", http.StatusUnauthorized)
 		return
@@ -171,11 +164,12 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 
 	channel, err := p.API.GetDirectChannel(mattermostUserID, p.botUserID)
 	if err != nil {
+		p.API.LogWarn("failed to get the bot's DM channel", "error", err.Error())
 		return
 	}
 	slackAttachment := p.slackAttachmentToUpdatePMI(action, channel.Id)
 
-	var val string
+	val := ""
 	switch action {
 	case Ask:
 		val = zoomPMISettingValueAsk
@@ -185,8 +179,8 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 		val = trueString
 	}
 
-	err = p.updateUserPersonalSettings(val, mattermostUserID)
-	if err != nil {
+	if err = p.updateUserPersonalSettings(val, mattermostUserID); err != nil {
+		p.API.LogWarn("failed to update preferences for user", "error", err.Error())
 		return
 	}
 
@@ -201,12 +195,12 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	p.API.UpdateEphemeralPost(mattermostUserID, post)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		p.API.LogWarn("failed to write response", "error", err.Error())
+		http.Error(w, "failed to write response", http.StatusInternalServerError)
 	}
 }
 
 func (p *Plugin) connectUserToZoom(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("Mattermost-User-ID")
+	userID := r.Header.Get(MattermostUserID)
 	if userID == "" {
 		http.Error(w, "Not authorized", http.StatusUnauthorized)
 		return
@@ -225,7 +219,7 @@ func (p *Plugin) connectUserToZoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request) {
-	authedUserID := r.Header.Get("Mattermost-User-ID")
+	authedUserID := r.Header.Get(MattermostUserID)
 	if authedUserID == "" {
 		http.Error(w, "Not authorized, missing Mattermost user id", http.StatusUnauthorized)
 		return
@@ -449,11 +443,12 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		p.API.LogWarn("failed to write response", "error", err.Error())
+		http.Error(w, "failed to write response", http.StatusInternalServerError)
 	}
 }
 func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID string) model.SlackAttachment {
-	apiEndPoint := "/plugins/" + manifest.ID + "/api/v1/updatePMI"
+	apiEndPoint := fmt.Sprintf("/plugins/%s/api/v1/updatePMI", manifest.ID)
+
 	slackAttachment := model.SlackAttachment{
 		Fallback: "You can not set your preference",
 		Title:    "*Setting: Use your Personal Meeting ID*",
@@ -467,7 +462,7 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID strin
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action": Yes,
+						Action: Yes,
 					},
 				},
 			},
@@ -479,7 +474,7 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID strin
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action": No,
+						Action: No,
 					},
 				},
 			},
@@ -491,7 +486,7 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID strin
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action": Ask,
+						Action: Ask,
 					},
 				},
 			},
@@ -573,36 +568,36 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 }
 
 func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
-	apiEndPoint := "/plugins/" + manifest.ID + "/api/v1/askPMI"
+	apiEndPoint := fmt.Sprintf("/plugins/%s/api/v1/askPMI", manifest.ID)
 
 	slackAttachment := model.SlackAttachment{
 		Pretext: askForPMIMeeting,
 		Actions: []*model.PostAction{
 			{
 				Id:    "WithPMI",
-				Name:  "USE PERSONAL MEETING ID",
+				Name:  UsePersonalMeetingID,
 				Type:  "button",
 				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action":    "USE PERSONAL MEETING ID",
-						"userID":    userID,
-						"channelID": channelID,
+						Action:    UsePersonalMeetingID,
+						UserID:    userID,
+						ChannelID: channelID,
 					},
 				},
 			},
 			{
 				Id:    "WithoutPMI",
-				Name:  "USE A UNIQUE MEETING ID",
+				Name:  UseAUniqueMeetingID,
 				Type:  "button",
 				Style: "primary",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
 					Context: map[string]interface{}{
-						"action":    "USE A UNIQUE MEETING ID",
-						"userID":    userID,
-						"channelID": channelID,
+						Action:    UseAUniqueMeetingID,
+						UserID:    userID,
+						ChannelID: channelID,
 					},
 				},
 			},
@@ -620,9 +615,7 @@ func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
 func (p *Plugin) getPMISettingData(userID string) (string, error) {
 	if preferences, reqErr := p.API.GetPreferencesForUser(userID); reqErr == nil {
 		for _, preference := range preferences {
-			if preference.UserId != userID ||
-				preference.Category != zoomPreferenceCategory ||
-				preference.Name != zoomPMISettingName {
+			if preference.UserId != userID || preference.Category != zoomPreferenceCategory || preference.Name != zoomPMISettingName {
 				continue
 			}
 			return preference.Value, nil
@@ -735,9 +728,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-func (p *Plugin) createMeetingWithoutPMI(
-	user *model.User, zoomUser *zoom.User, channelID string, topic string,
-) (int, error) {
+func (p *Plugin) createMeetingWithoutPMI(user *model.User, zoomUser *zoom.User, channelID string, topic string) (int, error) {
 	client, _, err := p.getActiveClient(user)
 	if err != nil {
 		p.API.LogWarn("Error getting the client", "err", err)

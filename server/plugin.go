@@ -186,7 +186,8 @@ func (p *Plugin) getOAuthConfig() *oauth2.Config {
 			"user:read",
 			"meeting:write",
 			"webinar:write",
-			"recording:write"},
+			"recording:write",
+		},
 	}
 }
 
