@@ -129,7 +129,7 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*mo
 // runStartCommand runs command to start a Zoom meeting.
 func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topic string) (string, error) {
 	if _, appErr := p.API.GetChannelMember(args.ChannelId, user.Id); appErr != nil {
-		return fmt.Sprintf("We could not get channel members (channelId: %v)", args.ChannelId), nil
+		return fmt.Sprintf("We could not get the channel members (channelId: %v)", args.ChannelId), nil
 	}
 
 	recentMeeting, recentMeetingLink, creatorName, provider, appErr := p.checkPreviousMessages(args.ChannelId)
@@ -150,27 +150,28 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 		}
 		return authErr.Message, authErr.Err
 	}
-	var meetingID int = -1
-	var createMeetingErr error = nil
+	var meetingID int
+	var createMeetingErr error
 
-	if userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(user.Id); getUserPMISettingErr == nil {
-		switch userPMISettingPref {
-		case zoomPMISettingValueAsk:
-			p.askUserPMIMeeting(user.Id, args.ChannelId)
-		case "", trueString:
-			meetingID = zoomUser.Pmi
-		default:
-			meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, defaultMeetingTopic)
-		}
-	} else {
+	userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(user.Id)
+	if getUserPMISettingErr != nil {
 		p.askUserPMIMeeting(user.Id, args.ChannelId)
-	}
-	if meetingID == -1 && createMeetingErr == nil {
 		return "", nil
 	}
-	if meetingID == -1 || createMeetingErr != nil {
-		return "", errors.New("error while creating a new meeting")
+
+	switch userPMISettingPref {
+	case zoomPMISettingValueAsk:
+		p.askUserPMIMeeting(user.Id, args.ChannelId)
+		return "", nil
+	case "", trueString:
+		meetingID = zoomUser.Pmi
+	default:
+		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, defaultMeetingTopic)
+		if createMeetingErr != nil {
+			return "", errors.New("error while creating a new meeting")
+		}
 	}
+
 	if postMeetingErr := p.postMeeting(user, meetingID, args.ChannelId, args.RootId, defaultMeetingTopic); postMeetingErr != nil {
 		return "", postMeetingErr
 	}

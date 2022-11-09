@@ -28,6 +28,8 @@ const (
 	zoomOAuthUserStateLength = 4
 	settingDataError         = "something went wrong while getting settings data"
 	askForPMIMeeting         = "Would you like to use your personal meeting ID?"
+	apiToUpdatePMI           = "/plugins/%s/api/v1/updatePMI"
+	apiToAskForPMI           = "/plugins/%s/api/v1/askPMI"
 	Yes                      = "Yes"
 	No                       = "No"
 	Ask                      = "Ask"
@@ -121,7 +123,7 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 	}
 	zoomUser, authErr := p.authenticateAndFetchZoomUser(user)
 	if authErr != nil {
-		p.API.LogWarn("failed to authenticate and fetch zoom user", "error", appErr.Error())
+		p.API.LogWarn("failed to authenticate and fetch the zoom user", "error", appErr.Error())
 		return
 	}
 	var meetingID int
@@ -132,11 +134,11 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, channelID, defaultMeetingTopic)
 	}
 	if createMeetingErr != nil {
-		p.API.LogWarn("failed to create meeting", "error", createMeetingErr.Error())
+		p.API.LogWarn("failed to create the meeting", "error", createMeetingErr.Error())
 		return
 	}
 	if postMeetingErr := p.postMeeting(user, meetingID, channelID, "", defaultMeetingTopic); postMeetingErr != nil {
-		p.API.LogWarn("failed to post meeting", "error", postMeetingErr.Error())
+		p.API.LogWarn("failed to post the meeting", "error", postMeetingErr.Error())
 		return
 	}
 	p.trackMeetingStart(userID, telemetryStartSourceCommand)
@@ -180,7 +182,7 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = p.updateUserPersonalSettings(val, mattermostUserID); err != nil {
-		p.API.LogWarn("failed to update preferences for user", "error", err.Error())
+		p.API.LogWarn("failed to update preferences for the user", "error", err.Error())
 		return
 	}
 
@@ -256,7 +258,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 	conf := p.getOAuthConfig()
 	token, err := conf.Exchange(context.Background(), code)
 	if err != nil {
-		p.API.LogWarn("failed to create access token", "error", err.Error())
+		p.API.LogWarn("failed to create the access token", "error", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -284,7 +286,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		p.API.LogWarn("failed to get user", "error", authErr.Error())
+		p.API.LogWarn("failed to get the user", "error", authErr.Error())
 		http.Error(w, "Could not complete the connection: "+authErr.Message, http.StatusInternalServerError)
 		return
 	}
@@ -298,7 +300,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 		}
 
 		if err = p.storeOAuthUserInfo(info); err != nil {
-			msg := "Unable to connect user to Zoom"
+			msg := "Unable to connect the user to Zoom"
 			p.API.LogWarn(msg, "error", err.Error())
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
@@ -318,7 +320,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 
 		meetingID := meeting.ID
 		if err = p.postMeeting(user, meetingID, channelID, "", ""); err != nil {
-			p.API.LogWarn("Failed to post meeting", "error", err.Error())
+			p.API.LogWarn("Failed to post the meeting", "error", err.Error())
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -340,7 +342,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "text/html")
 	if _, err := w.Write([]byte(html)); err != nil {
-		p.API.LogWarn("failed to write response", "error", err.Error())
+		p.API.LogWarn("failed to write the response", "error", err.Error())
 	}
 }
 
@@ -360,7 +362,7 @@ func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		p.API.LogWarn("Cannot read body from Webhook")
+		p.API.LogWarn("Cannot read the body from Webhook")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -396,7 +398,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 
 	post, appErr := p.API.GetPost(postID)
 	if appErr != nil {
-		p.API.LogWarn("Could not get meeting post by id", "err", appErr)
+		p.API.LogWarn("Could not get the meeting post by id", "err", appErr)
 		http.Error(w, appErr.Error(), appErr.StatusCode)
 		return
 	}
@@ -447,7 +449,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 	}
 }
 func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID string) model.SlackAttachment {
-	apiEndPoint := fmt.Sprintf("/plugins/%s/api/v1/updatePMI", manifest.ID)
+	apiEndPoint := fmt.Sprintf(apiToUpdatePMI, manifest.ID)
 
 	slackAttachment := model.SlackAttachment{
 		Fallback: "You can not set your preference",
@@ -498,7 +500,9 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID strin
 
 func (p *Plugin) updatePMI(userID string, channelID string) {
 	var currentValue string
-	if userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(userID); getUserPMISettingErr == nil {
+	if userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(userID); getUserPMISettingErr != nil {
+		currentValue = Ask
+	} else {
 		switch userPMISettingPref {
 		case zoomPMISettingValueAsk:
 			currentValue = Ask
@@ -507,8 +511,6 @@ func (p *Plugin) updatePMI(userID string, channelID string) {
 		default:
 			currentValue = No
 		}
-	} else {
-		currentValue = Ask
 	}
 	slackAttachment := p.slackAttachmentToUpdatePMI(currentValue, channelID)
 	post := &model.Post{
@@ -568,7 +570,7 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 }
 
 func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
-	apiEndPoint := fmt.Sprintf("/plugins/%s/api/v1/askPMI", manifest.ID)
+	apiEndPoint := fmt.Sprintf(apiToAskForPMI, manifest.ID)
 
 	slackAttachment := model.SlackAttachment{
 		Pretext: askForPMIMeeting,
@@ -660,7 +662,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		if recentMeeting {
 			_, err = w.Write([]byte(`{"meeting_url": ""}`))
 			if err != nil {
-				p.API.LogWarn("failed to write response", "error", err.Error())
+				p.API.LogWarn("failed to write the response", "error", err.Error())
 			}
 			p.postConfirm(recentMeetingLink, req.ChannelID, req.Topic, userID, "", creatorName, provider)
 			return
@@ -671,7 +673,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	if authErr != nil {
 		_, err = w.Write([]byte(`{"meeting_url": ""}`))
 		if err != nil {
-			p.API.LogWarn("failed to write response", "error", err.Error())
+			p.API.LogWarn("failed to write the response", "error", err.Error())
 		}
 
 		// the user state will be needed later while connecting the user to Zoom via OAuth
@@ -689,38 +691,28 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		topic = defaultMeetingTopic
 	}
 
-	usePMI := req.UsePMI
-	var meetingID int = -1
+	var meetingID int
 	var createMeetingErr error = nil
-	switch usePMI {
-	case "":
-		if userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(user.Id); getUserPMISettingErr == nil {
-			switch userPMISettingPref {
-			case zoomPMISettingValueAsk:
-				p.askUserPMIMeeting(user.Id, req.ChannelID)
-			case "", trueString:
-				meetingID = zoomUser.Pmi
-			default:
-				meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, req.ChannelID, topic)
-			}
-		} else {
-			p.askUserPMIMeeting(user.Id, req.ChannelID)
-		}
-	case trueString:
+	userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(user.Id)
+	if getUserPMISettingErr != nil {
+		p.askUserPMIMeeting(user.Id, req.ChannelID)
+		return
+	}
+	switch userPMISettingPref {
+	case zoomPMISettingValueAsk:
+		p.askUserPMIMeeting(user.Id, req.ChannelID)
+		return
+	case "", trueString:
 		meetingID = zoomUser.Pmi
 	default:
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, req.ChannelID, topic)
-	}
-
-	if meetingID == -1 && createMeetingErr == nil {
-		return
 	}
 
 	if meetingID >= 0 && createMeetingErr == nil {
 		if err = p.postMeeting(user, meetingID, req.ChannelID, "", topic); err == nil {
 			meetingURL := p.getMeetingURL(user, meetingID)
 			if _, err = w.Write([]byte(fmt.Sprintf(`{"meeting_url": "%s"}`, meetingURL))); err != nil {
-				p.API.LogWarn("failed to write response", "error", err.Error())
+				p.API.LogWarn("failed to write the response", "error", err.Error())
 			}
 			return
 		}
