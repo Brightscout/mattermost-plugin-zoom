@@ -24,12 +24,12 @@ import (
 )
 
 const (
-	defaultMeetingTopic      = "Zoom Meeting"
-	zoomOAuthUserStateLength = 4
-	settingDataError         = "something went wrong while getting settings data"
-	askForPMIMeeting         = "Would you like to use your personal meeting ID?"
-	apiToUpdatePMI           = "/plugins/%s/api/v1/updatePMI"
-	apiToAskForPMI           = "/plugins/%s/api/v1/askPMI"
+	DefaultMeetingTopic      = "Zoom Meeting"
+	ZoomOAuthUserStateLength = 4
+	SettingDataError         = "something went wrong while getting settings data"
+	AskForPMIMeeting         = "Would you like to use your personal meeting ID?"
+	APIToUpdatePMI           = "/plugins/%s/api/v1/updatePMI"
+	APIToAskForPMI           = "/plugins/%s/api/v1/askPMI"
 	Yes                      = "Yes"
 	No                       = "No"
 	Ask                      = "Ask"
@@ -94,7 +94,7 @@ func (p *Plugin) askPMI(w http.ResponseWriter, r *http.Request) {
 	channelID := postActionIntegrationRequest.Context[ChannelID].(string)
 
 	slackAttachment := model.SlackAttachment{
-		Text: fmt.Sprintf("You have selected `%s` to start a meeting.", action),
+		Text: fmt.Sprintf("You have selected `%s` to start the meeting.", action),
 	}
 
 	post := &model.Post{
@@ -131,13 +131,13 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 	if action == UsePersonalMeetingID {
 		meetingID = zoomUser.Pmi
 	} else {
-		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, channelID, defaultMeetingTopic)
+		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, channelID, DefaultMeetingTopic)
 	}
 	if createMeetingErr != nil {
 		p.API.LogWarn("failed to create the meeting", "error", createMeetingErr.Error())
 		return
 	}
-	if postMeetingErr := p.postMeeting(user, meetingID, channelID, "", defaultMeetingTopic); postMeetingErr != nil {
+	if postMeetingErr := p.postMeeting(user, meetingID, channelID, "", DefaultMeetingTopic); postMeetingErr != nil {
 		p.API.LogWarn("failed to post the meeting", "error", postMeetingErr.Error())
 		return
 	}
@@ -312,7 +312,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 	if justConnect {
 		p.postEphemeral(userID, channelID, "Successfully connected to Zoom \nType `/zoom settings` to change your meeting ID preference")
 	} else {
-		meeting, err := client.CreateMeeting(zoomUser, defaultMeetingTopic)
+		meeting, err := client.CreateMeeting(zoomUser, DefaultMeetingTopic)
 		if err != nil {
 			p.API.LogWarn("Error creating the meeting", "err", err)
 			return
@@ -408,7 +408,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 	startText := start.Format("Mon Jan 2 15:04:05 -0700 MST 2006")
 	topic, ok := post.Props["meeting_topic"].(string)
 	if !ok {
-		topic = defaultMeetingTopic
+		topic = DefaultMeetingTopic
 	}
 
 	meetingID, ok := post.Props["meeting_id"].(float64)
@@ -449,7 +449,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 	}
 }
 func (p *Plugin) slackAttachmentToUpdatePMI(currentValue string, channelID string) model.SlackAttachment {
-	apiEndPoint := fmt.Sprintf(apiToUpdatePMI, manifest.ID)
+	apiEndPoint := fmt.Sprintf(APIToUpdatePMI, manifest.ID)
 
 	slackAttachment := model.SlackAttachment{
 		Fallback: "You can not set your preference",
@@ -527,7 +527,7 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 	meetingURL := p.getMeetingURL(creator, meetingID)
 
 	if topic == "" {
-		topic = defaultMeetingTopic
+		topic = DefaultMeetingTopic
 	}
 
 	if !p.API.HasPermissionToChannel(creator.Id, channelID, model.PermissionCreatePost) {
@@ -570,10 +570,10 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 }
 
 func (p *Plugin) askUserPMIMeeting(userID string, channelID string) {
-	apiEndPoint := fmt.Sprintf(apiToAskForPMI, manifest.ID)
+	apiEndPoint := fmt.Sprintf(APIToAskForPMI, manifest.ID)
 
 	slackAttachment := model.SlackAttachment{
-		Pretext: askForPMIMeeting,
+		Pretext: AskForPMIMeeting,
 		Actions: []*model.PostAction{
 			{
 				Id:    "WithPMI",
@@ -624,7 +624,7 @@ func (p *Plugin) getPMISettingData(userID string) (string, error) {
 		}
 		return "", nil
 	}
-	return "", errors.New(settingDataError)
+	return "", errors.New(SettingDataError)
 }
 
 func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
@@ -688,7 +688,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	// topic
 	topic := req.Topic
 	if topic == "" {
-		topic = defaultMeetingTopic
+		topic = DefaultMeetingTopic
 	}
 
 	var meetingID int
@@ -909,7 +909,7 @@ func (p *Plugin) completeCompliance(payload zoom.DeauthorizationPayload) error {
 // parseOAuthUserState parses the user ID and the channel ID from the given OAuth user state.
 func parseOAuthUserState(state string) (userID, channelID string, justConnect bool, err error) {
 	stateComponents := strings.Split(state, "_")
-	if len(stateComponents) != zoomOAuthUserStateLength {
+	if len(stateComponents) != ZoomOAuthUserStateLength {
 		return "", "", false, errors.New("invalid OAuth user state")
 	}
 

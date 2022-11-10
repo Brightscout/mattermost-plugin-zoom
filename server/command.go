@@ -166,13 +166,13 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 	case "", trueString:
 		meetingID = zoomUser.Pmi
 	default:
-		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, defaultMeetingTopic)
+		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, DefaultMeetingTopic)
 		if createMeetingErr != nil {
 			return "", errors.New("error while creating a new meeting")
 		}
 	}
 
-	if postMeetingErr := p.postMeeting(user, meetingID, args.ChannelId, args.RootId, defaultMeetingTopic); postMeetingErr != nil {
+	if postMeetingErr := p.postMeeting(user, meetingID, args.ChannelId, args.RootId, DefaultMeetingTopic); postMeetingErr != nil {
 		return "", postMeetingErr
 	}
 
@@ -244,8 +244,7 @@ func (p *Plugin) runDisconnectCommand(user *model.User) (string, error) {
 
 // runHelpCommand runs command to display help text.
 func (p *Plugin) runHelpCommand() (string, error) {
-	text := starterText
-	text += strings.ReplaceAll(helpText+settingHelpText, "|", "`")
+	text := starterText + strings.ReplaceAll(helpText+settingHelpText, "|", "`")
 	if p.configuration.EnableOAuth {
 		text += "\n" + strings.ReplaceAll(oAuthHelpText, "|", "`")
 	}
