@@ -15,7 +15,7 @@ import (
 const (
 	starterText            = "###### Mattermost Zoom Plugin - Slash Command Help\n"
 	helpText               = `* |/zoom start| - Start a zoom meeting`
-	oAuthHelpText          = `* |/zoom disconnect| - Disconnect from zoom`
+	oAuthHelpText          = `* |/zoom connect| - Connect to Zoom* |/zoom disconnect| - Disconnect from Zoom`
 	settingHelpText        = `* |/zoom settings| - Configure settings options`
 	alreadyConnectedText   = "Already connected"
 	zoomPreferenceCategory = "plugin:zoom"
@@ -76,7 +76,6 @@ func (p *Plugin) parseCommand(rawCommand string) (cmd, action, topic string) {
 }
 
 func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (string, error) {
-	split := strings.Fields(args.Command)
 	command, action, topic := p.parseCommand(args.Command)
 
 	if command != "/zoom" {
@@ -103,7 +102,7 @@ func (p *Plugin) executeCommand(c *plugin.Context, args *model.CommandArgs) (str
 	case actionHelp, "":
 		return p.runHelpCommand()
 	case settings:
-		return p.runSettingCommand(args, split[2:], user)
+		return p.runSettingCommand(args, strings.Fields(args.Command)[2:], user)
 	default:
 		return fmt.Sprintf("Unknown action %v", action), nil
 	}
@@ -118,7 +117,7 @@ func (p *Plugin) canConnect(user *model.User) bool {
 func (p *Plugin) ExecuteCommand(c *plugin.Context, args *model.CommandArgs) (*model.CommandResponse, *model.AppError) {
 	msg, err := p.executeCommand(c, args)
 	if err != nil {
-		p.API.LogWarn("failed to execute command", "error", err.Error())
+		p.API.LogWarn("failed to execute command", "Error", err.Error())
 	}
 	if msg != "" {
 		p.postCommandResponse(args, msg)
@@ -155,13 +154,13 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 
 	userPMISettingPref, getUserPMISettingErr := p.getPMISettingData(user.Id)
 	if getUserPMISettingErr != nil {
-		p.askUserPMIMeeting(user.Id, args.ChannelId)
+		p.askUserForMeetingPreference(user.Id, args.ChannelId)
 		return "", nil
 	}
 
 	switch userPMISettingPref {
 	case zoomPMISettingValueAsk:
-		p.askUserPMIMeeting(user.Id, args.ChannelId)
+		p.askUserForMeetingPreference(user.Id, args.ChannelId)
 		return "", nil
 	case "", trueString:
 		meetingID = zoomUser.Pmi
@@ -252,11 +251,10 @@ func (p *Plugin) runHelpCommand() (string, error) {
 	return text, nil
 }
 
-// run "/zoom settings" command
-func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string, user *model.User) (string, error) {
+func (p *Plugin) runSettingCommand(args *model.CommandArgs, params []string, user *model.User) (string, error) {
 	settingAction := ""
-	if len(settingArgs) > 0 {
-		settingAction = settingArgs[0]
+	if len(params) > 0 {
+		settingAction = params[0]
 	}
 	switch settingAction {
 	case "":
@@ -268,17 +266,14 @@ func (p *Plugin) runSettingCommand(args *model.CommandArgs, settingArgs []string
 }
 
 func (p *Plugin) updateUserPersonalSettings(usePMIValue, userID string) *model.AppError {
-	if appError := p.API.UpdatePreferencesForUser(userID, []model.Preference{
+	return p.API.UpdatePreferencesForUser(userID, []model.Preference{
 		{
 			UserId:   userID,
 			Category: zoomPreferenceCategory,
 			Name:     zoomPMISettingName,
 			Value:    usePMIValue,
 		},
-	}); appError != nil {
-		return appError
-	}
-	return nil
+	})
 }
 
 // getAutocompleteData retrieves auto-complete data for the "/zoom" command
