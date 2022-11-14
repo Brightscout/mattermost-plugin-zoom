@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	starterText            = "###### Mattermost Zoom Plugin - Slash Command Help\n"
-	helpText               = `* |/zoom start| - Start a zoom meeting`
-	oAuthHelpText          = `* |/zoom connect| - Connect to Zoom* |/zoom disconnect| - Disconnect from Zoom`
+	starterText   = "###### Mattermost Zoom Plugin - Slash Command Help\n"
+	helpText      = `* |/zoom start| - Start a zoom meeting`
+	oAuthHelpText = `* |/zoom connect| - Connect to zoom
+* |/zoom disconnect| - Disconnect from zoom`
 	settingHelpText        = `* |/zoom settings| - Configure settings options`
 	alreadyConnectedText   = "Already connected"
 	zoomPreferenceCategory = "plugin:zoom"

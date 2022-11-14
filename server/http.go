@@ -464,7 +464,7 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue, channelID string) *mod
 			{
 				Id:    Yes,
 				Name:  Yes,
-				Type:  "button",
+				Type:  model.PostActionTypeButton,
 				Style: "default",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
@@ -476,7 +476,7 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue, channelID string) *mod
 			{
 				Id:    No,
 				Name:  No,
-				Type:  "button",
+				Type:  model.PostActionTypeButton,
 				Style: "default",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
@@ -488,7 +488,7 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue, channelID string) *mod
 			{
 				Id:    Ask,
 				Name:  Ask,
-				Type:  "button",
+				Type:  model.PostActionTypeButton,
 				Style: "default",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
@@ -583,7 +583,7 @@ func (p *Plugin) askUserForMeetingPreference(userID, channelID string) {
 			{
 				Id:    "WithPMI",
 				Name:  UsePersonalMeetingID,
-				Type:  "button",
+				Type:  model.PostActionTypeButton,
 				Style: "default",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
@@ -597,7 +597,7 @@ func (p *Plugin) askUserForMeetingPreference(userID, channelID string) {
 			{
 				Id:    "WithoutPMI",
 				Name:  UseAUniqueMeetingID,
-				Type:  "button",
+				Type:  model.PostActionTypeButton,
 				Style: "default",
 				Integration: &model.PostActionIntegration{
 					URL: apiEndPoint,
@@ -624,6 +624,7 @@ func (p *Plugin) getPMISettingData(userID string) (string, error) {
 	if reqErr != nil {
 		return "", errors.New(SettingDataError)
 	}
+
 	for _, preference := range preferences {
 		if preference.UserId != userID || preference.Category != zoomPreferenceCategory || preference.Name != zoomPMISettingName {
 			continue
@@ -728,7 +729,6 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	fmt.Print("hhhhhhhhhhhhhhhhhhh")
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
