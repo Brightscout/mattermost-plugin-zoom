@@ -37,18 +37,19 @@ export const doPost = async (url, body, headers = {}) => {
         headers,
     };
 
-    var response
-    var json = await fetch(url, Client4.getOptions(options)).then((resp)=>{
-        response = resp
-        if(resp.ok){
+    var response;
+    var json = await fetch(url, Client4.getOptions(options)).then((resp) => {
+        response = resp;
+        if (resp.ok) {
             return resp.json();
         }
-    }).catch((err)=>{
-        return {}
+        return {};
+    }).catch(() => {
+        return {};
     });
 
-    if(response?.ok){
-        return json
+    if (response?.ok) {
+        return json;
     }
 
     const text = await response.text();
