@@ -155,13 +155,13 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 
 	userPMISettingPref, err := p.getPMISettingData(user.Id)
 	if err != nil {
-		p.askPreferenceForThisMeeting(user.Id, args.ChannelId)
+		p.askPreferenceForMeeting(user.Id, args.ChannelId)
 		return "", nil
 	}
 
 	switch userPMISettingPref {
 	case zoomPMISettingValueAsk:
-		p.askPreferenceForThisMeeting(user.Id, args.ChannelId)
+		p.askPreferenceForMeeting(user.Id, args.ChannelId)
 		return "", nil
 	case "", trueString:
 		meetingID = zoomUser.Pmi

@@ -38,7 +38,7 @@ const (
 	channelIDForContext      = "channelID"
 	usePersonalMeetingID     = "USE PERSONAL MEETING ID"
 	useAUniqueMeetingID      = "USE A UNIQUE MEETING ID"
-	mattermostUserIDHeader   = "Mattermost-User-ID"
+	MattermostUserIDHeader   = "Mattermost-User-ID"
 )
 
 type startMeetingRequest struct {
@@ -162,7 +162,7 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	action := postActionIntegrationRequest.Context[actionForContext].(string)
-	mattermostUserID := r.Header.Get(mattermostUserIDHeader)
+	mattermostUserID := r.Header.Get(MattermostUserIDHeader)
 	if mattermostUserID == "" {
 		http.Error(w, "Not authorized", http.StatusUnauthorized)
 		return
@@ -206,7 +206,7 @@ func (p *Plugin) setPMI(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) connectUserToZoom(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get(mattermostUserIDHeader)
+	userID := r.Header.Get(MattermostUserIDHeader)
 	if userID == "" {
 		http.Error(w, "Not authorized", http.StatusUnauthorized)
 		return
@@ -225,7 +225,7 @@ func (p *Plugin) connectUserToZoom(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request) {
-	authedUserID := r.Header.Get(mattermostUserIDHeader)
+	authedUserID := r.Header.Get(MattermostUserIDHeader)
 	if authedUserID == "" {
 		http.Error(w, "Not authorized, missing Mattermost user id", http.StatusUnauthorized)
 		return
@@ -574,7 +574,7 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 	return nil
 }
 
-func (p *Plugin) askPreferenceForThisMeeting(userID, channelID string) {
+func (p *Plugin) askPreferenceForMeeting(userID, channelID string) {
 	apiEndPoint := fmt.Sprintf(apiToAskForPMI, manifest.ID)
 
 	slackAttachment := model.SlackAttachment{
@@ -700,13 +700,13 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	var createMeetingErr error
 	userPMISettingPref, err := p.getPMISettingData(user.Id)
 	if err != nil {
-		p.askPreferenceForThisMeeting(user.Id, req.ChannelID)
+		p.askPreferenceForMeeting(user.Id, req.ChannelID)
 		return
 	}
 
 	switch userPMISettingPref {
 	case zoomPMISettingValueAsk:
-		p.askPreferenceForThisMeeting(user.Id, req.ChannelID)
+		p.askPreferenceForMeeting(user.Id, req.ChannelID)
 		return
 	case "", trueString:
 		meetingID = zoomUser.Pmi
