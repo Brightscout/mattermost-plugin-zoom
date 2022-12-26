@@ -166,13 +166,13 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 	case "", trueString:
 		meetingID = zoomUser.Pmi
 	default:
-		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, defaultMeetingTopic)
+		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, topic)
 		if createMeetingErr != nil {
 			return "", errors.Wrap(createMeetingErr, "failed to create the meeting")
 		}
 	}
 
-	if postMeetingErr := p.postMeeting(user, meetingID, args.ChannelId, args.RootId, defaultMeetingTopic); postMeetingErr != nil {
+	if postMeetingErr := p.postMeeting(user, meetingID, args.ChannelId, args.RootId, topic); postMeetingErr != nil {
 		return "", postMeetingErr
 	}
 
