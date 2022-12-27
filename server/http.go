@@ -718,7 +718,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if meetingID != -1 && createMeetingErr == nil {
+	if meetingID != -1 {
 		if err = p.postMeeting(user, meetingID, req.ChannelID, "", topic); err == nil {
 			p.trackMeetingStart(userID, telemetryStartSourceWebapp)
 			if r.URL.Query().Get("force") != "" {
