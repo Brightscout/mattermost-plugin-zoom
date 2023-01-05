@@ -155,15 +155,16 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 
 	userPMISettingPref, err := p.getPMISettingData(user.Id)
 	if err != nil {
-		p.askPreferenceForMeeting(user.Id, args.ChannelId)
-		return "", nil
+		return "", err
 	}
 
+	isCreateMeetingWithPMI := false
 	switch userPMISettingPref {
 	case zoomPMISettingValueAsk:
 		p.askPreferenceForMeeting(user.Id, args.ChannelId)
 		return "", nil
 	case "", trueString:
+		isCreateMeetingWithPMI = true
 		meetingID = zoomUser.Pmi
 	default:
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, topic)
@@ -177,7 +178,7 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 	}
 
 	p.trackMeetingStart(args.UserId, telemetryStartSourceCommand)
-
+	p.trackMeetingStatus(args.UserId, isCreateMeetingWithPMI)
 	return "", nil
 }
 
@@ -254,7 +255,9 @@ func (p *Plugin) runHelpCommand() (string, error) {
 
 func (p *Plugin) runSettingCommand(args *model.CommandArgs, params []string, user *model.User) (string, error) {
 	if len(params) == 0 {
-		p.sendUserSettingForm(user.Id, args.ChannelId)
+		if err := p.sendUserSettingForm(user.Id, args.ChannelId); err != nil {
+			return "", err
+		}
 		return "", nil
 	}
 	return fmt.Sprintf("Unknown Action %v", ""), nil
