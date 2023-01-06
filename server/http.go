@@ -28,8 +28,6 @@ const (
 	zoomOAuthUserStateLength = 4
 	settingDataError         = "something went wrong while getting settings data"
 	askForPMIMeeting         = "Would you like to use your personal meeting ID?"
-	apiToUpdatePMI           = "/plugins/%s/api/v1/updatePMI"
-	apiToAskForPMI           = "/plugins/%s/api/v1/askPMI"
 	pathWebhook              = "/webhook"
 	pathStartMeeting         = "/api/v1/meetings"
 	pathConnectUser          = "/oauth2/connect"
@@ -464,7 +462,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 }
 
 func (p *Plugin) slackAttachmentToUpdatePMI(currentValue, channelID string) *model.SlackAttachment {
-	apiEndPoint := fmt.Sprintf(apiToUpdatePMI, manifest.ID)
+	apiEndPoint := fmt.Sprintf("/plugins/%s%s", manifest.ID, pathUpdatePMI)
 
 	slackAttachment := model.SlackAttachment{
 		Fallback: "You can not set your preference",
@@ -586,7 +584,7 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 }
 
 func (p *Plugin) askPreferenceForMeeting(userID, channelID string) {
-	apiEndPoint := fmt.Sprintf(apiToAskForPMI, manifest.ID)
+	apiEndPoint := fmt.Sprintf("/plugins/%s%s", manifest.ID, pathAskPMI)
 
 	slackAttachment := model.SlackAttachment{
 		Pretext: askForPMIMeeting,
