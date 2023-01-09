@@ -410,7 +410,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 
 	post, appErr := p.API.GetPost(postID)
 	if appErr != nil {
-		p.API.LogWarn("Could not get the meeting post by id", "err", appErr.Error())
+		p.API.LogWarn("failed to get the meeting post by id", "err", appErr.Error())
 		http.Error(w, appErr.Error(), appErr.StatusCode)
 		return
 	}
@@ -706,7 +706,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	var createMeetingErr error
 	userPMISettingPref, err := p.getPMISettingData(user.Id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		p.askPreferenceForMeeting(user.Id, req.ChannelID)
 		return
 	}
