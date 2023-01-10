@@ -158,13 +158,13 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 		return "", err
 	}
 
-	isCreateMeetingWithPMI := false
+	createMeetingWithPMI := false
 	switch userPMISettingPref {
 	case zoomPMISettingValueAsk:
 		p.askPreferenceForMeeting(user.Id, args.ChannelId)
 		return "", nil
 	case "", trueString:
-		isCreateMeetingWithPMI = true
+		createMeetingWithPMI = true
 		meetingID = zoomUser.Pmi
 	default:
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, args.ChannelId, topic)
@@ -178,7 +178,7 @@ func (p *Plugin) runStartCommand(args *model.CommandArgs, user *model.User, topi
 	}
 
 	p.trackMeetingStart(args.UserId, telemetryStartSourceCommand)
-	p.trackMeetingStatus(args.UserId, isCreateMeetingWithPMI)
+	p.trackMeetingType(args.UserId, createMeetingWithPMI)
 	return "", nil
 }
 

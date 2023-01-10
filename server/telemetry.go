@@ -29,9 +29,9 @@ func (p *Plugin) trackMeetingStart(userID, source string) {
 	})
 }
 
-func (p *Plugin) trackMeetingStatus(userID string, isCreateMeetingWithPMI bool) {
-	_ = p.tracker.TrackUserEvent("meeting_status", userID, map[string]interface{}{
-		"isCreateMeetingWithPMI": isCreateMeetingWithPMI,
+func (p *Plugin) trackMeetingType(userID string, usePMI bool) {
+	_ = p.tracker.TrackUserEvent("meeting_type", userID, map[string]interface{}{
+		"use_pmi": usePMI,
 	})
 }
 

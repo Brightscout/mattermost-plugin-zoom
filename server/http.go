@@ -114,7 +114,7 @@ func (p *Plugin) submitFormPMIForMeeting(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		http.Error(w, "failed to write the response", http.StatusInternalServerError)
+		p.API.LogError("failed to write response", "Error", err.Error())
 	}
 
 	p.startMeeting(action, userID, channelID)
@@ -135,9 +135,9 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 
 	var meetingID int
 	var createMeetingErr error
-	isCreateMeetingWithPMI := false
+	createMeetingWithPMI := false
 	if action == usePersonalMeetingID {
-		isCreateMeetingWithPMI = true
+		createMeetingWithPMI = true
 		meetingID = zoomUser.Pmi
 	} else {
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, channelID, defaultMeetingTopic)
@@ -153,7 +153,7 @@ func (p *Plugin) startMeeting(action string, userID string, channelID string) {
 	}
 
 	p.trackMeetingStart(userID, telemetryStartSourceCommand)
-	p.trackMeetingStatus(userID, isCreateMeetingWithPMI)
+	p.trackMeetingType(userID, createMeetingWithPMI)
 }
 
 func (p *Plugin) submitFormPMIForPreference(w http.ResponseWriter, r *http.Request) {
@@ -209,7 +209,7 @@ func (p *Plugin) submitFormPMIForPreference(w http.ResponseWriter, r *http.Reque
 	p.API.UpdateEphemeralPost(mattermostUserID, post)
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		p.API.LogWarn("failed to write response", "Error", err.Error())
+		p.API.LogError("failed to write response", "Error", err.Error())
 	}
 }
 
@@ -326,7 +326,7 @@ func (p *Plugin) completeUserOAuthToZoom(w http.ResponseWriter, r *http.Request)
 	} else {
 		meeting, err := client.CreateMeeting(zoomUser, defaultMeetingTopic)
 		if err != nil {
-			p.API.LogWarn("Error creating the meeting", "err", err.Error())
+			p.API.LogWarn("Error creating the meeting", "error", err.Error())
 			return
 		}
 
@@ -374,14 +374,14 @@ func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		p.API.LogWarn("failed to read the body from Webhook", "Error", err.Error())
+		p.API.LogWarn("failed to read the body from Webhook", "error", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	var webhook zoom.Webhook
 	if err = json.Unmarshal(b, &webhook); err != nil {
-		p.API.LogError("Error unmarshaling webhook", "err", err.Error())
+		p.API.LogError("Error unmarshaling webhook", "error", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -393,7 +393,7 @@ func (p *Plugin) handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	var meetingWebhook zoom.MeetingWebhook
 	if err = json.Unmarshal(b, &meetingWebhook); err != nil {
-		p.API.LogError("Error unmarshaling meeting webhook", "err", err.Error())
+		p.API.LogError("Error unmarshaling meeting webhook", "error", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -410,7 +410,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 
 	post, appErr := p.API.GetPost(postID)
 	if appErr != nil {
-		p.API.LogWarn("failed to get the meeting post by id", "err", appErr.Error())
+		p.API.LogWarn("failed to get the meeting post by id", "error", appErr.Error())
 		http.Error(w, appErr.Error(), appErr.StatusCode)
 		return
 	}
@@ -444,7 +444,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 	post.Props["attachments"] = []*model.SlackAttachment{&slackAttachment}
 
 	if _, appErr = p.API.UpdatePost(post); appErr != nil {
-		p.API.LogWarn("Could not update the post", "err", appErr.Error())
+		p.API.LogWarn("Could not update the post", "error", appErr.Error())
 		http.Error(w, appErr.Error(), appErr.StatusCode)
 		return
 	}
@@ -456,8 +456,7 @@ func (p *Plugin) handleMeetingEnded(w http.ResponseWriter, r *http.Request, webh
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(post); err != nil {
-		p.API.LogWarn("failed to write response", "error", err.Error())
-		http.Error(w, "failed to write the response", http.StatusInternalServerError)
+		p.API.LogError("failed to write response", "error", err.Error())
 	}
 }
 
@@ -578,7 +577,7 @@ func (p *Plugin) postMeeting(creator *model.User, meetingID int, channelID strin
 	}
 
 	if appErr = p.storeMeetingPostID(meetingID, createdPost.Id); appErr != nil {
-		p.API.LogDebug("failed to store post id", "err", appErr)
+		p.API.LogDebug("failed to store post id", "error", appErr)
 	}
 	return nil
 }
@@ -711,13 +710,13 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isCreateMeetingWithPMI := false
+	createMeetingWithPMI := false
 	switch userPMISettingPref {
 	case zoomPMISettingValueAsk:
 		p.askPreferenceForMeeting(user.Id, req.ChannelID)
 		return
 	case "", trueString:
-		isCreateMeetingWithPMI = true
+		createMeetingWithPMI = true
 		meetingID = zoomUser.Pmi
 	default:
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, req.ChannelID, topic)
@@ -734,7 +733,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p.trackMeetingStart(userID, telemetryStartSourceWebapp)
-	p.trackMeetingStatus(userID, isCreateMeetingWithPMI)
+	p.trackMeetingType(userID, createMeetingWithPMI)
 
 	if r.URL.Query().Get("force") != "" {
 		p.trackMeetingForced(userID)
