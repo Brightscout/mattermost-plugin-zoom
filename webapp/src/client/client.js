@@ -20,7 +20,7 @@ export default class Client {
             topic,
             meeting_id: meetingId,
         });
-        return res?.meeting_url;
+        return res.meeting_url;
     }
 
     forceStartMeeting = async (channelId, personal = true, topic = '', meetingId = 0) => {
@@ -36,14 +36,9 @@ export const doPost = async (url, body, headers = {}) => {
         headers,
     };
 
-    let response;
-    try {
-        response = await fetch(url, Client4.getOptions(options));
-        if (response.ok) {
-            return response;
-        }
-    } catch (err) {
-        return {err};
+    const response = await fetch(url, Client4.getOptions(options));
+    if (response.ok) {
+        return response;
     }
 
     const text = await response.text();

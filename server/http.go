@@ -512,17 +512,18 @@ func (p *Plugin) slackAttachmentToUpdatePMI(currentValue, channelID string) *mod
 
 func (p *Plugin) sendUserSettingForm(userID string, channelID string) error {
 	var currentValue string
-	if userPMISettingPref, err := p.getPMISettingData(userID); err != nil {
+	userPMISettingPref, err := p.getPMISettingData(userID)
+	if err != nil {
 		return err
-	} else {
-		switch userPMISettingPref {
-		case zoomPMISettingValueAsk:
-			currentValue = ask
-		case "", trueString:
-			currentValue = yes
-		default:
-			currentValue = no
-		}
+	}
+
+	switch userPMISettingPref {
+	case zoomPMISettingValueAsk:
+		currentValue = ask
+	case "", trueString:
+		currentValue = yes
+	default:
+		currentValue = no
 	}
 
 	slackAttachment := p.slackAttachmentToUpdatePMI(currentValue, channelID)
@@ -722,7 +723,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		meetingID, createMeetingErr = p.createMeetingWithoutPMI(user, zoomUser, req.ChannelID, topic)
 		if createMeetingErr != nil {
 			p.API.LogWarn("failed to create the meeting", "Error", createMeetingErr.Error())
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, createMeetingErr.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
