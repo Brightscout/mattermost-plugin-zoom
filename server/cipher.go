@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -47,19 +48,28 @@ func encrypt(key []byte, text string) (string, error) {
 }
 
 func decrypt(key []byte, text string) (string, error) {
+	fmt.Print("\n inside decrypt-1")
 	block, err := aes.NewCipher(key)
 	if err != nil {
+		fmt.Printf("\n inside decrypt-1.5%s", err)
+
 		return "", err
 	}
+
+	fmt.Print("\n inside decrypt-2")
 
 	decodedMsg, err := base64.URLEncoding.DecodeString(text)
 	if err != nil {
 		return "", err
 	}
 
+	fmt.Print("\n inside decrypt-3")
+
 	if (len(decodedMsg) % aes.BlockSize) != 0 {
 		return "", errors.New("blocksize must be multiple of decoded message length")
 	}
+
+	fmt.Print("\n inside decrypt-4")
 
 	iv := decodedMsg[:aes.BlockSize]
 	msg := decodedMsg[aes.BlockSize:]

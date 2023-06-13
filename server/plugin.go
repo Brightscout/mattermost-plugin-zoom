@@ -34,8 +34,6 @@ const (
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	jwtClient zoom.Client
-
 	client *pluginapi.Client
 
 	// botUserID of the created bot account.
@@ -101,8 +99,6 @@ func (p *Plugin) OnActivate() error {
 		return errors.Wrap(appErr, "couldn't set profile image")
 	}
 
-	p.jwtClient = zoom.NewJWTClient(p.getZoomAPIURL(), config.APIKey, config.APISecret)
-
 	p.telemetryClient, err = telemetry.NewRudderClient()
 	if err != nil {
 		p.API.LogWarn("telemetry client not started", "error", err.Error())
@@ -135,12 +131,10 @@ func (p *Plugin) registerSiteURL() error {
 
 // getActiveClient returns an OAuth Zoom client if available, otherwise an error and a user facing error message.
 func (p *Plugin) getActiveClient(user *model.User) (zoom.Client, string, error) {
+	fmt.Print("\n inside getActiveClient-1")
 	config := p.getConfiguration()
 
-	// JWT
-	if !p.OAuthEnabled() {
-		return p.jwtClient, "", nil
-	}
+	fmt.Print("\n inside getActiveClient-2")
 
 	// OAuth Account Level
 	if config.AccountLevelApp {
@@ -158,12 +152,16 @@ func (p *Plugin) getActiveClient(user *model.User) (zoom.Client, string, error) 
 		return zoom.NewOAuthClient(token, p.getOAuthConfig(), p.siteURL, p.getZoomAPIURL(), true, p), "", nil
 	}
 
+	fmt.Print("\n inside getActiveClient-3")
+
 	// Oauth User Level
 	message := fmt.Sprintf(zoom.OAuthPrompt, p.siteURL)
 	info, err := p.fetchOAuthUserInfo(zoomUserByMMID, user.Id)
 	if err != nil {
 		return nil, message, errors.Wrap(err, "could not fetch Zoom OAuth info")
 	}
+
+	fmt.Print("\n inside getActiveClient-4")
 
 	conf := p.getOAuthConfig()
 	return zoom.NewOAuthClient(info.OAuthToken, conf, p.siteURL, p.getZoomAPIURL(), false, p), "", nil
@@ -187,6 +185,7 @@ func (p *Plugin) getOAuthConfig() *oauth2.Config {
 
 // authenticateAndFetchZoomUser uses the active Zoom client to authenticate and return the Zoom user
 func (p *Plugin) authenticateAndFetchZoomUser(user *model.User) (*zoom.User, *zoom.AuthError) {
+	fmt.Print("\n inside authenticateAndFetchZoomUser-1")
 	zoomClient, message, err := p.getActiveClient(user)
 	if err != nil {
 		return nil, &zoom.AuthError{
@@ -194,6 +193,8 @@ func (p *Plugin) authenticateAndFetchZoomUser(user *model.User) (*zoom.User, *zo
 			Err:     err,
 		}
 	}
+
+	fmt.Printf("\n inside authenticateAndFetchZoomUser-2%s", zoomClient)
 
 	firstConnect := false
 	return zoomClient.GetUser(user, firstConnect)
@@ -263,11 +264,11 @@ func (p *Plugin) isCloudLicense() bool {
 	return license != nil && license.Features != nil && license.Features.Cloud != nil && *license.Features.Cloud
 }
 
-func (p *Plugin) OAuthEnabled() bool {
-	config := p.getConfiguration()
-	if config.EnableOAuth {
-		return true
-	}
+// func (p *Plugin) OAuthEnabled() bool {
+// 	/*config := p.getConfiguration()
+// 	if config.EnableOAuth {
+// 		return true
+// 	}
 
-	return p.isCloudLicense()
-}
+// 	return p.isCloudLicense()
+// }

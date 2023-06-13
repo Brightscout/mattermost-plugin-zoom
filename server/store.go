@@ -56,20 +56,27 @@ func (p *Plugin) storeOAuthUserInfo(info *zoom.OAuthUserInfo) error {
 func (p *Plugin) fetchOAuthUserInfo(tokenKey, userID string) (*zoom.OAuthUserInfo, error) {
 	config := p.getConfiguration()
 
+	fmt.Print("\n inside fetchOAuthUserInfo-1")
 	encoded, appErr := p.API.KVGet(tokenKey + userID)
 	if appErr != nil || encoded == nil {
 		return nil, errors.New("must connect user account to Zoom first")
 	}
+
+	fmt.Print("\n inside fetchOAuthUserInfo-2")
 
 	var info zoom.OAuthUserInfo
 	if err := json.Unmarshal(encoded, &info); err != nil {
 		return nil, errors.New("could not to parse OAauth access token")
 	}
 
+	fmt.Printf("\n inside fetchOAuthUserInfo-3=%s", config.EncryptionKey)
+
 	plainToken, err := decrypt([]byte(config.EncryptionKey), info.OAuthToken.AccessToken)
 	if err != nil {
 		return nil, errors.New("could not decrypt OAuth access token")
 	}
+
+	fmt.Print("\n inside fetchOAuthUserInfo-4")
 
 	info.OAuthToken.AccessToken = plainToken
 
@@ -114,6 +121,7 @@ func (p *Plugin) storeOAuthUserState(userID string, channelID string, justConnec
 		connectString = trueString
 	}
 	state := fmt.Sprintf("%s_%s_%s_%s", model.NewId()[0:15], userID, channelID, connectString)
+	fmt.Print("\n inside storeOAuthUserState")
 	return p.API.KVSetWithExpiry(key, []byte(state), oAuthUserStateTTL)
 }
 
@@ -137,6 +145,7 @@ func (p *Plugin) deleteUserState(userID string) *model.AppError {
 func (p *Plugin) storeMeetingPostID(meetingID int, postID string) *model.AppError {
 	key := fmt.Sprintf("%v%v", postMeetingKey, meetingID)
 	bytes := []byte(postID)
+	fmt.Print("\n inside storeMeetingPostID")
 	return p.API.KVSetWithExpiry(key, bytes, meetingPostIDTTL)
 }
 

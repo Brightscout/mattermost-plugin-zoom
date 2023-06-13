@@ -254,12 +254,15 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Print("\n handleStartMeeting-1")
+
 	var req startMeetingRequest
 	var err error
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	fmt.Print("\n handleStartMeeting-2")
 
 	user, appErr := p.API.GetUser(userID)
 	if appErr != nil {
@@ -267,10 +270,14 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Print("\n handleStartMeeting-2")
+
 	if _, appErr = p.API.GetChannelMember(req.ChannelID, userID); appErr != nil {
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
+
+	fmt.Print("\n handleStartMeeting-3")
 
 	if r.URL.Query().Get("force") == "" {
 		recentMeeting, recentMeetingLink, creatorName, provider, cpmErr := p.checkPreviousMessages(req.ChannelID)
@@ -289,8 +296,11 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	fmt.Print("\n handleStartMeeting-4")
+
 	zoomUser, authErr := p.authenticateAndFetchZoomUser(user)
 	if authErr != nil {
+		fmt.Print("\n handleStartMeeting-5 authErr",authErr)
 		_, err = w.Write([]byte(`{"meeting_url": ""}`))
 		if err != nil {
 			p.API.LogWarn("failed to write response", "error", err.Error())
@@ -305,11 +315,15 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Print("\n handleStartMeeting-5")
+
 	client, _, err := p.getActiveClient(user)
 	if err != nil {
 		p.API.LogWarn("Error getting the client", "err", err)
 		return
 	}
+
+	fmt.Print("\n handleStartMeeting-6")
 
 	meeting, err := client.CreateMeeting(zoomUser, defaultMeetingTopic)
 	if err != nil {
@@ -317,11 +331,15 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Print("\n handleStartMeeting-7")
+
 	meetingID := meeting.ID
 	if err = p.postMeeting(user, meetingID, req.ChannelID, "", req.Topic); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	fmt.Print("\n handleStartMeeting-8")
 
 	p.trackMeetingStart(userID, telemetryStartSourceWebapp)
 

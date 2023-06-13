@@ -20,7 +20,8 @@ import (
 const (
 	httpTimeout = time.Second * 10
 	// OAuthPrompt stores the template to show the users to connect to Zoom
-	OAuthPrompt = "[Click here to link your Zoom account.](%s/plugins/zoom/oauth2/connect)"
+	OAuthPrompt       = "[Click here to link your Zoom account.](%s/plugins/zoom/oauth2/connect)"
+	zoomEmailMismatch = "We could not verify your Mattermost account in Zoom. Please ensure that your Mattermost email address %s matches your Zoom login email address."
 )
 
 // OAuthUserInfo represents a Zoom user authenticated via OAuth.
@@ -48,8 +49,10 @@ func NewOAuthClient(token *oauth2.Token, config *oauth2.Config, siteURL, apiURL 
 
 // GetUser returns the Zoom user via OAuth.
 func (c *OAuthClient) GetUser(user *model.User, firstConnect bool) (*User, *AuthError) {
+	fmt.Print("\n inside GetUser-1")
 	zoomUser, err := c.getUserViaOAuth(user, firstConnect)
 	if err != nil {
+		fmt.Printf("\n inside GetUser-1.5%s", err)
 		if c.isAccountLevel {
 			if err == errNotFound {
 				return nil, &AuthError{fmt.Sprintf(zoomEmailMismatch, user.Email), err}
@@ -58,8 +61,11 @@ func (c *OAuthClient) GetUser(user *model.User, firstConnect bool) (*User, *Auth
 			return nil, &AuthError{fmt.Sprintf("Error fetching user: %s", err), err}
 		}
 
+		fmt.Print("\n inside GetUser-3")
+
 		return nil, &AuthError{fmt.Sprintf(OAuthPrompt, c.siteURL), err}
 	}
+	fmt.Print("\n inside GetUser-2")
 
 	return zoomUser, nil
 }
