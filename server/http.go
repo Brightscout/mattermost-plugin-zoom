@@ -300,7 +300,7 @@ func (p *Plugin) handleStartMeeting(w http.ResponseWriter, r *http.Request) {
 
 	zoomUser, authErr := p.authenticateAndFetchZoomUser(user)
 	if authErr != nil {
-		fmt.Print("\n handleStartMeeting-5 authErr",authErr)
+		fmt.Print("\n handleStartMeeting-555 authErr", authErr)
 		_, err = w.Write([]byte(`{"meeting_url": ""}`))
 		if err != nil {
 			p.API.LogWarn("failed to write response", "error", err.Error())

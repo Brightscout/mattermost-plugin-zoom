@@ -134,10 +134,12 @@ func (c *OAuthClient) CreateMeeting(user *User, topic string) (*Meeting, error) 
 }
 
 func (c *OAuthClient) getUserViaOAuth(user *model.User, firstConnect bool) (*User, error) {
+	fmt.Printf("\n\ngetUserViaOAuth - 1  %+v\n\n", c.apiURL)
 	url := fmt.Sprintf("%s/users/me", c.apiURL)
 	if c.isAccountLevel {
 		url = fmt.Sprintf("%s/users/%s", c.apiURL, user.Email)
 	}
+	fmt.Printf("\n\ngetUserViaOAuth - 2\n\n")
 
 	if !firstConnect {
 		if c.isAccountLevel {
@@ -185,8 +187,10 @@ func (c *OAuthClient) getUserViaOAuth(user *model.User, firstConnect bool) (*Use
 			c.token = updatedToken
 		}
 	}
+	fmt.Printf("\n\ngetUserViaOAuth - 3 %+v    %+v\n\n", c, c.token)
 
 	client := c.config.Client(context.Background(), c.token)
+	fmt.Printf("\n\ngetUserViaOAuth - 4\n\n")
 
 	res, err := client.Get(url)
 	if err != nil {
@@ -194,6 +198,7 @@ func (c *OAuthClient) getUserViaOAuth(user *model.User, firstConnect bool) (*Use
 	}
 
 	defer res.Body.Close()
+	fmt.Printf("\n\ngetUserViaOAuth - 5\n\n")
 
 	if res.StatusCode == http.StatusNotFound {
 		return nil, errNotFound
