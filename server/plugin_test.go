@@ -29,22 +29,6 @@ func TestPlugin(t *testing.T) {
 	// Mock zoom server
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/users/theuseremail" {
-			fmt.Print("\n inside test server-1")
-			user := &zoom.User{
-				ID:    "thezoomuserid",
-				Email: "theuseremail",
-				Pmi:   123,
-			}
-
-			str, _ := json.Marshal(user)
-
-			if _, err := w.Write(str); err != nil {
-				require.NoError(t, err)
-			}
-		}
-		if r.URL.Path == "/users/me" {
-			fmt.Print("\n inside test server-2")
-
 			user := &zoom.User{
 				ID:    "thezoomuserid",
 				Email: "theuseremail",
@@ -58,8 +42,6 @@ func TestPlugin(t *testing.T) {
 			}
 		}
 		if r.URL.Path == "/users/theuseremail/meetings" {
-			fmt.Print("\n inside test server-3")
-
 			meeting := &zoom.Meeting{
 				ID: 234,
 			}
@@ -78,12 +60,12 @@ func TestPlugin(t *testing.T) {
 	meetingRequest := httptest.NewRequest("POST", "/api/v1/meetings", strings.NewReader("{\"channel_id\": \"thechannelid\"}"))
 	meetingRequest.Header.Add("Mattermost-User-Id", "theuserid")
 
-	// endedPayload := `{"event": "meeting.ended", "payload": {"object": {"id": "234"}}}`
-	// validStoppedWebhookRequest := httptest.NewRequest("POST", "/webhook?secret=thewebhooksecret", strings.NewReader(endedPayload))
+	endedPayload := `{"event": "meeting.ended", "payload": {"object": {"id": "234"}}}`
+	validStoppedWebhookRequest := httptest.NewRequest("POST", "/webhook?secret=thewebhooksecret", strings.NewReader(endedPayload))
 
-	// validStartedWebhookRequest := httptest.NewRequest("POST", "/webhook?secret=thewebhooksecret", strings.NewReader(`{"event": "meeting.started"}`))
+	validStartedWebhookRequest := httptest.NewRequest("POST", "/webhook?secret=thewebhooksecret", strings.NewReader(`{"event": "meeting.started"}`))
 
-	// noSecretWebhookRequest := httptest.NewRequest("POST", "/webhook", strings.NewReader(endedPayload))
+	noSecretWebhookRequest := httptest.NewRequest("POST", "/webhook", strings.NewReader(endedPayload))
 
 	unauthorizedUserRequest := httptest.NewRequest("POST", "/api/v1/meetings", strings.NewReader("{\"channel_id\": \"thechannelid\", \"personal\": true}"))
 	unauthorizedUserRequest.Header.Add("Mattermost-User-Id", "theuserid")
@@ -103,26 +85,21 @@ func TestPlugin(t *testing.T) {
 			ExpectedStatusCode:     http.StatusOK,
 			HasPermissionToChannel: true,
 		},
-		// "ValidStoppedWebhookRequest": {
-		// 	Request:                validStoppedWebhookRequest,
-		// 	ExpectedStatusCode:     http.StatusOK,
-		// 	HasPermissionToChannel: true,
-		// },
-		// "ValidStartedWebhookRequest": {
-		// 	Request:                validStartedWebhookRequest,
-		// 	ExpectedStatusCode:     http.StatusOK,
-		// 	HasPermissionToChannel: true,
-		// },
-		// "NoSecretWebhookRequest": {
-		// 	Request:                noSecretWebhookRequest,
-		// 	ExpectedStatusCode:     http.StatusUnauthorized,
-		// 	HasPermissionToChannel: true,
-		// },
-		// "UnauthorizedChannelPermissions": {
-		// 	Request:                unauthorizedUserRequest,
-		// 	ExpectedStatusCode:     http.StatusInternalServerError,
-		// 	HasPermissionToChannel: false,
-		// },
+		"ValidStoppedWebhookRequest": {
+			Request:                validStoppedWebhookRequest,
+			ExpectedStatusCode:     http.StatusOK,
+			HasPermissionToChannel: true,
+		},
+		"ValidStartedWebhookRequest": {
+			Request:                validStartedWebhookRequest,
+			ExpectedStatusCode:     http.StatusOK,
+			HasPermissionToChannel: true,
+		},
+		"NoSecretWebhookRequest": {
+			Request:                noSecretWebhookRequest,
+			ExpectedStatusCode:     http.StatusUnauthorized,
+			HasPermissionToChannel: true,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			botUserID := "yei0BahL3cohya8vuaboShaeSi"
@@ -140,6 +117,8 @@ func TestPlugin(t *testing.T) {
 
 			api.On("KVGet", "mmi_botid").Return([]byte(botUserID), nil)
 			api.On("KVGet", "zoomtoken_theuserid").Return(userInfo, nil)
+
+			api.On("SendEphemeralPost", "theuserid", mock.AnythingOfType("*model.Post")).Return(nil)
 
 			api.On("PatchBot", botUserID, mock.AnythingOfType("*model.BotPatch")).Return(nil, nil)
 
@@ -159,7 +138,7 @@ func TestPlugin(t *testing.T) {
 
 			api.On("KVSetWithExpiry", fmt.Sprintf("%v%v", postMeetingKey, 234), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("int64")).Return(nil)
 			api.On("KVSetWithExpiry", fmt.Sprintf("%v%v", postMeetingKey, 123), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("int64")).Return(nil)
-			//api.On("KVSetWithExpiry", "zoomuserstate_theuserid").Return(nil)
+			api.On("KVSetWithExpiry", "zoomuserstate_theuserid", mock.AnythingOfType("[]uint8"), mock.AnythingOfType("int64")).Return(nil)
 
 			api.On("KVGet", fmt.Sprintf("%v%v", postMeetingKey, 234)).Return([]byte("thepostid"), nil)
 			api.On("KVGet", fmt.Sprintf("%v%v", postMeetingKey, 123)).Return([]byte("thepostid"), nil)
