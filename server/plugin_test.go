@@ -28,7 +28,6 @@ import (
 func TestPlugin(t *testing.T) {
 	// Mock zoom server
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("\n\n\n\nuuurrrlll: %+v\n\n\n", r.URL)
 		if r.URL.Path == "/users/theuseremail" {
 			user := &zoom.User{
 				ID:    "thezoomuserid",
@@ -164,7 +163,6 @@ func TestPlugin(t *testing.T) {
 			})
 
 			p := Plugin{}
-			fmt.Print("\n mainURL=", ts.URL)
 			p.setConfiguration(&configuration{
 				ZoomAPIURL:    ts.URL,
 				WebhookSecret: "thewebhooksecret",

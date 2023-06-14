@@ -253,12 +253,3 @@ func (p *Plugin) isCloudLicense() bool {
 	license := p.API.GetLicense()
 	return license != nil && license.Features != nil && license.Features.Cloud != nil && *license.Features.Cloud
 }
-
-// func (p *Plugin) OAuthEnabled() bool {
-// 	/*config := p.getConfiguration()
-// 	if config.EnableOAuth {
-// 		return true
-// 	}
-
-// 	return p.isCloudLicense()
-// }

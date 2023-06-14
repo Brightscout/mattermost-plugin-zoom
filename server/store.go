@@ -55,6 +55,7 @@ func (p *Plugin) storeOAuthUserInfo(info *zoom.OAuthUserInfo) error {
 
 func (p *Plugin) fetchOAuthUserInfo(tokenKey, userID string) (*zoom.OAuthUserInfo, error) {
 	config := p.getConfiguration()
+
 	encoded, appErr := p.API.KVGet(tokenKey + userID)
 	if appErr != nil || encoded == nil {
 		return nil, errors.New("must connect user account to Zoom first")

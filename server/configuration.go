@@ -9,7 +9,6 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-api/experimental/telemetry"
 	"github.com/pkg/errors"
-	//"github.com/mattermost/mattermost-plugin-zoom/server/zoom"
 )
 
 const (
@@ -29,11 +28,8 @@ const (
 // If you add non-reference types to your configuration struct, be sure to rewrite Clone as a deep
 // copy appropriate for your types.
 type configuration struct {
-	ZoomURL    string
-	ZoomAPIURL string
-	// APIKey     string
-	// APISecret  string
-	//EnableOAuth       bool
+	ZoomURL           string
+	ZoomAPIURL        string
 	AccountLevelApp   bool
 	OAuthClientID     string
 	OAuthClientSecret string
