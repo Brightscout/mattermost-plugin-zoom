@@ -107,12 +107,13 @@ func TestPlugin(t *testing.T) {
 
 			api := &plugintest.API{}
 
-			userInfo, _ := json.Marshal(zoom.OAuthUserInfo{
+			userInfo, err := json.Marshal(zoom.OAuthUserInfo{
 				OAuthToken: &oauth2.Token{
 					AccessToken: "2a41c3138d2187a756c51428f78d192e9b88dcf44dd62d1b081ace4ec2241e0a",
 				},
 			})
 
+			require.Nil(t, err)
 			api.On("GetLicense").Return(nil)
 			api.On("GetServerVersion").Return("6.2.0")
 
