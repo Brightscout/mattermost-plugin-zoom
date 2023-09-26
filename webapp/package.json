@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "core-js": "3.7.0",
-    "fs": "0.0.1-security",
     "mattermost-redux": "5.28.1",
     "prop-types": "15.7.2",
     "react": "17.0.1",
